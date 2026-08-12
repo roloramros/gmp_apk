@@ -79,7 +79,7 @@ fun JobDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(currentJob?.title ?: "Trabajo", maxLines = 1) },
+                title = { Text(currentJob?.clientName ?: currentJob?.title ?: "Montaje", maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
@@ -115,7 +115,7 @@ fun JobDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // --- Info del job ---
+            // --- Info del job ("montaje") ---
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -131,18 +131,22 @@ fun JobDetailScreen(
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
-                    if (!clientName.isNullOrBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        Text("Cliente: $clientName", style = MaterialTheme.typography.bodyMedium)
+
+                    DetailRow("Cliente", currentJob.clientName ?: clientName)
+                    DetailRow("CI", currentJob.clientCi)
+                    DetailRow("Teléfono", currentJob.clientPhone)
+                    DetailRow("Dirección", currentJob.address)
+                    if (currentJob.latitude != null && currentJob.longitude != null) {
+                        DetailRow("Coordenadas", "${currentJob.latitude}, ${currentJob.longitude}")
                     }
-                    if (!currentJob.address.isNullOrBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        Text("Dirección: ${currentJob.address}", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    if (!currentJob.description.isNullOrBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(currentJob.description, style = MaterialTheme.typography.bodyMedium)
-                    }
+                    DetailRow("Referencia", currentJob.reference)
+                    DetailRow("Notas del sitio", currentJob.siteNotes)
+                    DetailRow("Descripción del trabajo", currentJob.description)
+                    DetailRow("Precio", currentJob.price?.let { "$$it" })
+                    DetailRow("Forma de pago", currentJob.paymentMethod?.let { pm -> PAYMENT_METHODS.find { it.value == pm }?.label ?: pm })
+                    DetailRow("Fecha de visita", currentJob.visitDate)
+                    DetailRow("Fecha propuesta", currentJob.proposedDate)
+                    DetailRow("Fecha de montaje (oficial)", currentJob.scheduledAt?.take(10))
 
                     if (workers.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
@@ -160,7 +164,7 @@ fun JobDetailScreen(
                             onClick = { showCancelConfirm = true },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = SolarError),
                         ) {
-                            Text("Cancelar trabajo")
+                            Text("Cancelar montaje")
                         }
                     }
                 }
@@ -239,6 +243,19 @@ fun JobDetailScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String?) {
+    if (value.isNullOrBlank()) return
+    Column(modifier = Modifier.padding(top = 8.dp)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

@@ -69,7 +69,8 @@ class JobsRepository @Inject constructor(
     }
 
     /**
-     * Crea un job offline-first (patrón comercial, Fase 6 Paso 2):
+     * Crea un job offline-first (patrón comercial, Fase 6 Paso 3 — réplica
+     * exacta de `saveJob()` de la web legada, ver `openJobCreateModal`).
      * 1) Genera el `uuid` acá mismo (identidad definitiva del recurso, la
      *    misma que viaja en el body de POST /jobs).
      * 2) Inserta en Room YA, en estado "pending", para que la UI lo muestre
@@ -78,13 +79,28 @@ class JobsRepository @Inject constructor(
      *    que el servidor cree exactamente ese registro (idempotente por
      *    X-Command-Id, no por el uuid del job en sí).
      *
+     * `title` no lo pide la UI de comercial (no existe en la web legada) —
+     * se usa `clientName` como título interno, para que el resto de la app
+     * (listas por rol, notificaciones futuras) tenga algo legible sin
+     * depender de un campo nuevo.
+     *
      * Devuelve el `uuid` generado para que la UI pueda navegar al detalle
      * del job recién creado sin esperar la respuesta del servidor.
      */
     suspend fun createJob(
-        title: String,
+        clientName: String,
+        clientCi: String?,
+        clientPhone: String?,
+        address: String,
+        latitude: Double?,
+        longitude: Double?,
+        reference: String?,
+        siteNotes: String?,
         description: String?,
-        address: String?,
+        price: String,
+        paymentMethod: String,
+        visitDate: String?,
+        proposedDate: String?,
         clientUuid: String?,
     ): String {
         val jobUuid = UUID.randomUUID().toString()
@@ -97,7 +113,7 @@ class JobsRepository @Inject constructor(
                     uuid = jobUuid,
                     clientUuid = clientUuid,
                     createdByUuid = createdByUuid,
-                    title = title,
+                    title = clientName,
                     description = description,
                     status = "pending",
                     address = address,
@@ -110,6 +126,17 @@ class JobsRepository @Inject constructor(
                     cancelledAt = null,
                     createdAt = nowIso,
                     updatedAt = nowIso,
+                    clientName = clientName,
+                    clientCi = clientCi,
+                    clientPhone = clientPhone,
+                    latitude = latitude,
+                    longitude = longitude,
+                    reference = reference,
+                    siteNotes = siteNotes,
+                    price = price,
+                    paymentMethod = paymentMethod,
+                    visitDate = visitDate,
+                    proposedDate = proposedDate,
                 ),
             ),
         )
@@ -119,10 +146,21 @@ class JobsRepository @Inject constructor(
             httpMethod = "POST",
             payload = mapOf(
                 "uuid" to jobUuid,
-                "title" to title,
+                "title" to clientName,
                 "description" to description,
                 "address" to address,
                 "client_uuid" to clientUuid,
+                "client_name" to clientName,
+                "client_ci" to clientCi,
+                "client_phone" to clientPhone,
+                "latitude" to latitude,
+                "longitude" to longitude,
+                "reference" to reference,
+                "site_notes" to siteNotes,
+                "price" to price,
+                "payment_method" to paymentMethod,
+                "visit_date" to visitDate,
+                "proposed_date" to proposedDate,
             ),
         )
 
@@ -130,15 +168,24 @@ class JobsRepository @Inject constructor(
     }
 
     /**
-     * Actualiza los campos editables de un job ya existente (título,
-     * descripción, dirección, cliente). Mismo patrón optimista + outbox que
-     * `createJob`, pero contra `PATCH /jobs/:uuid`.
+     * Actualiza los campos editables de un job ya existente. Mismo patrón
+     * optimista + outbox que `createJob`, pero contra `PATCH /jobs/:uuid`.
      */
     suspend fun updateJob(
         jobUuid: String,
-        title: String,
+        clientName: String,
+        clientCi: String?,
+        clientPhone: String?,
+        address: String,
+        latitude: Double?,
+        longitude: Double?,
+        reference: String?,
+        siteNotes: String?,
         description: String?,
-        address: String?,
+        price: String,
+        paymentMethod: String,
+        visitDate: String?,
+        proposedDate: String?,
         clientUuid: String?,
     ) {
         val job = jobDao.getByUuid(jobUuid) ?: return
@@ -147,10 +194,21 @@ class JobsRepository @Inject constructor(
         jobDao.upsertAll(
             listOf(
                 job.copy(
-                    title = title,
+                    title = clientName,
                     description = description,
                     address = address,
                     clientUuid = clientUuid,
+                    clientName = clientName,
+                    clientCi = clientCi,
+                    clientPhone = clientPhone,
+                    latitude = latitude,
+                    longitude = longitude,
+                    reference = reference,
+                    siteNotes = siteNotes,
+                    price = price,
+                    paymentMethod = paymentMethod,
+                    visitDate = visitDate,
+                    proposedDate = proposedDate,
                     updatedAt = nowIso,
                 ),
             ),
@@ -160,10 +218,21 @@ class JobsRepository @Inject constructor(
             endpointPath = "/jobs/$jobUuid",
             httpMethod = "PATCH",
             payload = mapOf(
-                "title" to title,
+                "title" to clientName,
                 "description" to description,
                 "address" to address,
                 "client_uuid" to clientUuid,
+                "client_name" to clientName,
+                "client_ci" to clientCi,
+                "client_phone" to clientPhone,
+                "latitude" to latitude,
+                "longitude" to longitude,
+                "reference" to reference,
+                "site_notes" to siteNotes,
+                "price" to price,
+                "payment_method" to paymentMethod,
+                "visit_date" to visitDate,
+                "proposed_date" to proposedDate,
             ),
         )
     }

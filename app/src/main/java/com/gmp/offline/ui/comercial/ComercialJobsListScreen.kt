@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +20,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,7 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -43,10 +46,13 @@ import com.gmp.offline.ui.theme.SolarAmber
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
 
-// Pantalla principal del rol comercial (Fase 6, Paso 2): lista de jobs de la
-// empresa (el filtrado por rol ya lo aplicó el backend en /sync — acá solo
-// se muestra lo que hay en Room), con indicador de "pendiente de sync" por
-// fila, botón de sync manual, y un FAB para crear un job nuevo.
+// Pantalla principal del rol comercial ("Planificación de Montajes" en la
+// web legada): lista de jobs de la empresa con barra de filtros por estado
+// (chips con conteo, igual que `renderStatusFilterBar` de la web) y una
+// fila por job mostrando Cliente / Precio / Estado / Fecha de montaje —
+// las mismas 4 columnas que la tabla `myJobsBody` de la web. Indicador de
+// "pendiente de sync" agregado (no existe en la web, es propio del modelo
+// offline-first de la app).
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ComercialJobsListScreen(
@@ -56,13 +62,15 @@ fun ComercialJobsListScreen(
     viewModel: ComercialJobsListViewModel = hiltViewModel(),
 ) {
     val jobRows by viewModel.jobRows.collectAsStateWithLifecycle()
+    val statusCounts by viewModel.statusCounts.collectAsStateWithLifecycle()
+    val activeFilters by viewModel.activeFilters.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Mis trabajos", style = MaterialTheme.typography.titleLarge)
+                        Text("Planificación de Montajes", style = MaterialTheme.typography.titleMedium)
                         Text(
                             viewModel.currentFullName ?: "Comercial",
                             style = MaterialTheme.typography.bodySmall,
@@ -85,33 +93,80 @@ fun ComercialJobsListScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onCreateJob, containerColor = SolarAmber, contentColor = SolarGreenDark) {
-                Icon(Icons.Filled.Add, contentDescription = "Nuevo trabajo")
+                Icon(Icons.Filled.Add, contentDescription = "Nuevo montaje")
             }
         },
     ) { innerPadding ->
-        if (jobRows.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "Todavía no hay trabajos. Tocá el + para crear el primero.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
+            StatusFilterBar(
+                counts = statusCounts,
+                activeFilters = activeFilters,
+                onToggle = { viewModel.toggleStatusFilter(it) },
+                onClear = { viewModel.clearStatusFilters() },
+            )
+
+            if (jobRows.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (activeFilters.isEmpty()) {
+                            "Aún no has registrado ningún montaje. Tocá el + para crear el primero."
+                        } else {
+                            "No hay montajes con los filtros seleccionados."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(jobRows, key = { it.job.uuid }) { row ->
+                        JobRowCard(row = row, onClick = { onOpenJob(row.job.uuid) })
+                    }
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(jobRows, key = { it.job.uuid }) { row ->
-                    JobRowCard(row = row, onClick = { onOpenJob(row.job.uuid) })
+        }
+    }
+}
+
+@Composable
+private fun StatusFilterBar(
+    counts: Map<String, Int>,
+    activeFilters: Set<String>,
+    onToggle: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(JOB_STATUS_ORDER) { status ->
+            val isActive = activeFilters.contains(status)
+            val color = jobStatusColor(status)
+            FilterChip(
+                selected = isActive,
+                onClick = { onToggle(status) },
+                label = { Text("${jobStatusLabel(status)} · ${counts[status] ?: 0}") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = color,
+                    selectedLabelColor = MaterialTheme.colorScheme.surface,
+                ),
+            )
+        }
+        if (activeFilters.isNotEmpty()) {
+            item {
+                TextButton(onClick = onClear) {
+                    Text("Quitar filtros ✕")
                 }
             }
         }
@@ -133,8 +188,9 @@ private fun JobRowCard(row: ComercialJobRow, onClick: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Columna "Cliente" (misma que j.client_name en la web)
                 Text(
-                    row.job.title,
+                    row.clientName ?: row.job.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -142,15 +198,27 @@ private fun JobRowCard(row: ComercialJobRow, onClick: () -> Unit) {
                 StatusBadge(status = row.job.status)
             }
 
-            if (!row.clientName.isNullOrBlank()) {
-                Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                // Columna "Precio"
                 Text(
-                    "Cliente: ${row.clientName}",
+                    row.job.price?.let { "$$it" } ?: "—",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // Columna "Fecha montaje" (scheduledAt, fijada por admin)
+                Text(
+                    row.job.scheduledAt?.take(10) ?: "sin fecha",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
             if (!row.job.address.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
                 Text(
                     row.job.address,
                     style = MaterialTheme.typography.bodySmall,
