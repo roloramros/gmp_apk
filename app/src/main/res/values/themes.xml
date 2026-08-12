@@ -1,0 +1,5 @@
+<resources>
+    <!-- Tema mínimo solo para el arranque de la Activity; el look real de la
+         app se define con MaterialTheme dentro de Compose (MainActivity.kt). -->
+    <style name="Theme.GmpOffline" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+      El backend en el VPS corre por HTTP plano (sin TLS) mientras se resuelve
+      el certificado (fuera del alcance de este proyecto por ahora). Cuando
+      haya HTTPS: borrar este archivo, quitar android:networkSecurityConfig
+      y android:usesCleartextTraffic del AndroidManifest.xml, y cambiar
+      API_BASE_URL a "https://..." en app/build.gradle.kts.
+    -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
