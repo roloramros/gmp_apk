@@ -58,6 +58,16 @@ fun LoginScreen(
             Spacer(Modifier.height(8.dp))
         }
 
+        // DEBUG TEMPORAL: para diagnosticar por qué el dropdown aparece vacío
+        // sin necesitar logcat. Se saca en cuanto se resuelva el problema.
+        Text(
+            "DEBUG: companies.size=${companies.size} · uiState=${uiState::class.simpleName} · " +
+                companies.joinToString(prefix = "[", postfix = "]") { it.name },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(8.dp))
+
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = selectedCompany?.name ?: "",
