@@ -28,8 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,11 +36,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -221,11 +219,11 @@ fun LoginScreen(
                         label = { Text("Contraseña") },
                         leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null, tint = SolarGreen) },
                         trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                    contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña",
-                                    tint = SolarGreen,
+                            TextButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Text(
+                                    if (passwordVisible) "Ocultar" else "Ver",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = SolarGreen,
                                 )
                             }
                         },
