@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <!--
-      El backend en el VPS corre por HTTP plano (sin TLS) mientras se resuelve
-      el certificado (fuera del alcance de este proyecto por ahora). Cuando
-      haya HTTPS: borrar este archivo, quitar android:networkSecurityConfig
-      y android:usesCleartextTraffic del AndroidManifest.xml, y cambiar
-      API_BASE_URL a "https://..." en app/build.gradle.kts.
+      El backend en el VPS (69.169.102.33) corre por HTTP plano (sin TLS)
+      mientras se resuelve el certificado (fuera del alcance de este proyecto
+      por ahora). Se permite cleartext SOLO hacia esa IP puntual, no de forma
+      global — así cualquier otra conexión de la app (si algún día hay otra)
+      sigue exigiendo HTTPS por default.
+
+      Cuando haya HTTPS en el VPS: borrar este archivo, quitar
+      android:networkSecurityConfig y android:usesCleartextTraffic del
+      AndroidManifest.xml, y cambiar API_BASE_URL a "https://..." en
+      app/build.gradle.kts.
     -->
-    <base-config cleartextTrafficPermitted="true" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">69.169.102.33</domain>
+    </domain-config>
 </network-security-config>

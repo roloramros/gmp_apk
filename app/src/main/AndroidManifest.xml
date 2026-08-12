@@ -10,8 +10,7 @@
         android:allowBackup="true"
         android:label="@string/app_name"
         android:theme="@style/Theme.GmpOffline"
-        android:networkSecurityConfig="@xml/network_security_config"
-        android:usesCleartextTraffic="true">
+        android:networkSecurityConfig="@xml/network_security_config">
 
         <!-- WorkManager se inicializa a mano en GmpApplication (Configuration.Provider
              + HiltWorkerFactory), así que se desactiva el inicializador automático

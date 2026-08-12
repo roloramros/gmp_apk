@@ -25,11 +25,11 @@ android {
             // El backend hoy corre por HTTP plano (sin TLS), de ahí usesCleartextTraffic
             // en el manifest y network_security_config.xml. Cuando haya HTTPS, cambiar
             // a "https://..." acá y quitar el permiso de cleartext.
-            buildConfigField("String", "API_BASE_URL", "\"http://REEMPLAZAR_IP_VPS:3002/\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://69.169.102.33:3002/\"")
         }
         release {
             isMinifyEnabled = false
-            buildConfigField("String", "API_BASE_URL", "\"http://REEMPLAZAR_IP_VPS:3002/\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://69.169.102.33:3002/\"")
         }
     }
 
