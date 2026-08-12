@@ -1,5 +1,7 @@
 package com.gmp.offline.ui.login
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,14 +10,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenu
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,7 +30,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gmp.offline.data.remote.dto.CompanyDto
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
@@ -52,19 +53,23 @@ fun LoginScreen(
         Text("GMP — Gestión Montajes Pro", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(24.dp))
 
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = it },
-        ) {
+        if (uiState is LoginUiState.LoadingCompanies) {
+            Text("Cargando empresas...", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+        }
+
+        Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = selectedCompany?.name ?: "",
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Empresa") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = true },
             )
-            ExposedDropdownMenu(
+            DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
             ) {
@@ -121,6 +126,19 @@ fun LoginScreen(
         if (currentState is LoginUiState.Error) {
             Spacer(Modifier.height(12.dp))
             Text(currentState.message, color = MaterialTheme.colorScheme.error)
+        }
+
+        if (companies.isEmpty() && currentState !is LoginUiState.LoadingCompanies) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "No se cargó ninguna empresa.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(4.dp))
+            Button(onClick = { viewModel.loadCompanies() }) {
+                Text("Reintentar")
+            }
         }
     }
 }
