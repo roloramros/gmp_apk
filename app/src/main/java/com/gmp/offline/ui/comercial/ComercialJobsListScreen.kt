@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import com.gmp.offline.ui.theme.SolarGreenDark
 // empresa (el filtrado por rol ya lo aplicó el backend en /sync — acá solo
 // se muestra lo que hay en Room), con indicador de "pendiente de sync" por
 // fila, botón de sync manual, y un FAB para crear un job nuevo.
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ComercialJobsListScreen(
     onLoggedOut: () -> Unit,
