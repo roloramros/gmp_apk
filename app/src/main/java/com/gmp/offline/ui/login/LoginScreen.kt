@@ -58,16 +58,6 @@ fun LoginScreen(
             Spacer(Modifier.height(8.dp))
         }
 
-        // DEBUG TEMPORAL: para diagnosticar por qué el dropdown aparece vacío
-        // sin necesitar logcat. Se saca en cuanto se resuelva el problema.
-        Text(
-            "DEBUG: companies.size=${companies.size} · uiState=${uiState::class.simpleName} · " +
-                companies.joinToString(prefix = "[", postfix = "]") { it.name },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.height(8.dp))
-
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = selectedCompany?.name ?: "",
@@ -75,8 +65,17 @@ fun LoginScreen(
                 readOnly = true,
                 label = { Text("Empresa") },
                 trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            // Capa transparente ENCIMA del OutlinedTextField para capturar el
+            // toque: un OutlinedTextField (aunque sea readOnly) maneja sus
+            // propios eventos de puntero para foco/cursor, así que un
+            // `.clickable` puesto directamente sobre él no llega a disparar.
+            // Este Box invisible del mismo tamaño intercepta el tap antes de
+            // que llegue al campo.
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .matchParentSize()
                     .clickable { expanded = true },
             )
             DropdownMenu(
