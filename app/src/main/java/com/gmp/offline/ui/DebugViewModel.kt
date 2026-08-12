@@ -38,6 +38,17 @@ class DebugViewModel @Inject constructor(
     private val _status = MutableStateFlow("Sin datos todavía. Inicia sesión y sincroniza.")
     val status: StateFlow<String> = _status.asStateFlow()
 
+    // Agregados en Fase 6 al reutilizar esta pantalla como "home" post-login
+    // (el login en sí ahora vive en LoginScreen/LoginViewModel, no acá).
+    val currentFullName: String? get() = authRepository.currentFullName
+    val currentRole: String? get() = authRepository.currentRole
+
+    fun logout(onLoggedOut: () -> Unit) {
+        syncScheduler.cancelAll()
+        authRepository.logout()
+        onLoggedOut()
+    }
+
     fun loginAndSync(companyId: Int, phone: String, password: String) {
         viewModelScope.launch {
             try {

@@ -20,3 +20,13 @@ data class LoginUserDto(
     val role: String,
     @SerializedName("company_id") val companyId: String,
 )
+
+// Espejo de GET /companies (listado público para el selector del login).
+// OJO: el backend devuelve "id" como string (ej. "1"), no como número —
+// confirmado con curl real contra /companies. Se convierte a Int recién
+// al armar el LoginRequest.
+data class CompanyDto(
+    val id: String,
+    val uuid: String,
+    val name: String,
+)

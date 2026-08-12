@@ -81,6 +81,10 @@ dependencies {
     ksp("com.google.dagger:hilt-compiler:2.51.1")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
+    // Navigation Compose — grafo de navegación real (Fase 6, reemplaza a
+    // la pantalla única de debug de Fase 4/5).
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+
     // Retrofit — solo se usa acá para el cargador manual de un solo disparo
     // (OneShotSyncLoader) que prueba la capa Room. El cliente HTTP "de verdad"
     // integrado al outbox llega en la Fase 5.

@@ -1,5 +1,6 @@
 package com.gmp.offline.data.remote
 
+import com.gmp.offline.data.remote.dto.CompanyDto
 import com.gmp.offline.data.remote.dto.LoginRequest
 import com.gmp.offline.data.remote.dto.LoginResponse
 import com.gmp.offline.data.remote.dto.SyncResponseDto
@@ -15,6 +16,11 @@ interface ApiService {
 
     @POST("auth/login")
     suspend fun login(@Body body: LoginRequest): LoginResponse
+
+    // Listado público de empresas, para el selector del login (Fase 6).
+    // Devuelve un array plano (sin wrapper), confirmado contra el backend real.
+    @GET("companies")
+    suspend fun listCompanies(): List<CompanyDto>
 
     @GET("sync")
     suspend fun sync(

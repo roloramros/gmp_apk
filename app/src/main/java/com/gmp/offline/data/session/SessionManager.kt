@@ -28,10 +28,29 @@ class SessionManager @Inject constructor(
         get() = prefs.getString(KEY_USER_UUID, null)
         set(value) = prefs.edit().putString(KEY_USER_UUID, value).apply()
 
+    // Agregados en Fase 6: se necesitan para rutear la navegación por rol
+    // sin depender de que el usuario logueado aparezca en la tabla `staff`
+    // sincronizada (un trabajador sin jobs asignados podría no verse a sí
+    // mismo ahí, según la visibilidad definida en fase1-diseno-datos-sync.md).
+    var role: String?
+        get() = prefs.getString(KEY_ROLE, null)
+        set(value) = prefs.edit().putString(KEY_ROLE, value).apply()
+
+    var fullName: String?
+        get() = prefs.getString(KEY_FULL_NAME, null)
+        set(value) = prefs.edit().putString(KEY_FULL_NAME, value).apply()
+
+    var companyId: String?
+        get() = prefs.getString(KEY_COMPANY_ID, null)
+        set(value) = prefs.edit().putString(KEY_COMPANY_ID, value).apply()
+
     fun clear() = prefs.edit().clear().apply()
 
     private companion object {
         const val KEY_TOKEN = "token"
         const val KEY_USER_UUID = "user_uuid"
+        const val KEY_ROLE = "role"
+        const val KEY_FULL_NAME = "full_name"
+        const val KEY_COMPANY_ID = "company_id"
     }
 }
