@@ -12,6 +12,11 @@ interface MaterialDao {
     @Query("SELECT * FROM materials ORDER BY name ASC")
     fun observeAll(): Flow<List<MaterialEntity>>
 
+    // Lectura puntual (no-Flow) usada al agregar un material de catálogo a un
+    // job, para poder ofrecer defaultPrice como sugerencia de unitPrice.
+    @Query("SELECT * FROM materials WHERE uuid = :uuid")
+    suspend fun getByUuid(uuid: String): MaterialEntity?
+
     @Upsert
     suspend fun upsertAll(items: List<MaterialEntity>)
 
