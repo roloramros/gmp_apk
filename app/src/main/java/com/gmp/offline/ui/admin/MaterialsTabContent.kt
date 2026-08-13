@@ -292,6 +292,7 @@ private fun MaterialFormDialog(
     )
 }
 
+@Composable
 private fun materialFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = SolarGreen,
     unfocusedBorderColor = SolarGreen.copy(alpha = 0.35f),
