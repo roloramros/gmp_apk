@@ -1,16 +1,16 @@
 package com.gmp.offline.ui.comercial
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gmp.offline.data.local.entities.JobEntity
-import com.gmp.offline.data.local.entities.JobMaterialEntity
+import com.gmp.offline.data.local.entities.JobPhotoEntity
 import com.gmp.offline.data.local.entities.JobWorkerEntity
-import com.gmp.offline.data.local.entities.MaterialEntity
 import com.gmp.offline.data.local.entities.StaffEntity
 import com.gmp.offline.data.repository.JobDetailRepository
 import com.gmp.offline.data.repository.JobsRepository
-import com.gmp.offline.data.repository.MaterialsRepository
+import com.gmp.offline.data.repository.PhotoActionResult
 import com.gmp.offline.data.repository.StaffRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,19 +22,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// Fila de material ya enriquecida con el nombre a mostrar (del catálogo o
-// el texto libre) y el subtotal calculado, para que la pantalla no tenga
-// que resolver nada — solo pintar.
-data class JobMaterialRow(
-    val item: JobMaterialEntity,
-    val displayName: String,
-    val subtotal: Double?,
-)
-
-sealed interface AddMaterialUiState {
-    data object Idle : AddMaterialUiState
-    data object Saving : AddMaterialUiState
-    data class Error(val message: String) : AddMaterialUiState
+sealed interface PhotoUiState {
+    data object Idle : PhotoUiState
+    data object Uploading : PhotoUiState
+    data class Error(val message: String) : PhotoUiState
 }
 
 @HiltViewModel
@@ -43,7 +34,6 @@ class JobDetailViewModel @Inject constructor(
     private val jobsRepository: JobsRepository,
     private val jobDetailRepository: JobDetailRepository,
     staffRepository: StaffRepository,
-    materialsRepository: MaterialsRepository,
 ) : ViewModel() {
 
     private val jobUuid: String = requireNotNull(savedStateHandle["jobUuid"]) {
@@ -56,10 +46,6 @@ class JobDetailViewModel @Inject constructor(
     val workers: StateFlow<List<JobWorkerEntity>> = jobDetailRepository.observeWorkers(jobUuid)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // Catálogo completo, para el selector "de catálogo" al agregar un material.
-    val catalog: StateFlow<List<MaterialEntity>> = materialsRepository.observeMaterials()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     private val staff: StateFlow<List<StaffEntity>> = staffRepository.observeStaff()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -67,65 +53,44 @@ class JobDetailViewModel @Inject constructor(
         j?.clientUuid?.let { uuid -> s.find { it.uuid == uuid }?.fullName }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val materialRows: StateFlow<List<JobMaterialRow>> = combine(
-        jobDetailRepository.observeMaterials(jobUuid),
-        catalog,
-    ) { materials, catalogList ->
-        val catalogByUuid = catalogList.associateBy { it.uuid }
-        materials.map { item ->
-            val catalogMaterial = item.materialUuid?.let { catalogByUuid[it] }
-            val displayName = catalogMaterial?.name ?: item.freeTextDescription ?: "Material"
-            val subtotal = item.unitPrice?.toDoubleOrNull()?.let { price ->
-                item.quantity.toDoubleOrNull()?.let { qty -> price * qty }
-            }
-            JobMaterialRow(item = item, displayName = displayName, subtotal = subtotal)
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    // Solo se permite una foto por montaje — se observa como valor único
+    // (null si todavía no se agregó ninguna), no como lista.
+    val photo: StateFlow<JobPhotoEntity?> = jobDetailRepository.observePhotos(jobUuid)
+        .combine(job) { photos, _ -> photos.firstOrNull() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private val _addMaterialState = MutableStateFlow<AddMaterialUiState>(AddMaterialUiState.Idle)
-    val addMaterialState: StateFlow<AddMaterialUiState> = _addMaterialState.asStateFlow()
+    private val _photoState = MutableStateFlow<PhotoUiState>(PhotoUiState.Idle)
+    val photoState: StateFlow<PhotoUiState> = _photoState.asStateFlow()
 
-    /**
-     * `materialUuid` y `freeText` son mutuamente excluyentes: la pantalla
-     * decide cuál mandar según si el usuario eligió del catálogo o escribió
-     * texto libre. `unitPrice` puede venir vacío — se hereda el
-     * `defaultPrice` del catálogo si corresponde (ver JobDetailRepository).
-     */
-    fun addMaterial(materialUuid: String?, freeText: String?, quantity: String, unitPrice: String?) {
-        if (materialUuid == null && freeText.isNullOrBlank()) {
-            _addMaterialState.value = AddMaterialUiState.Error("Elegí un material del catálogo o escribí una descripción.")
-            return
-        }
-        val qty = quantity.trim()
-        if (qty.toDoubleOrNull() == null || qty.toDouble() <= 0) {
-            _addMaterialState.value = AddMaterialUiState.Error("La cantidad tiene que ser un número mayor a 0.")
-            return
-        }
+    /** La imagen ya llega comprimida — ver [JobDetailRepository.addPhoto]. */
+    fun addPhoto(imageUri: Uri) {
         viewModelScope.launch {
-            _addMaterialState.value = AddMaterialUiState.Saving
-            try {
-                jobDetailRepository.addMaterial(
-                    jobUuid = jobUuid,
-                    materialUuid = materialUuid,
-                    freeTextDescription = if (materialUuid == null) freeText?.trim() else null,
-                    quantity = qty,
-                    unitPrice = unitPrice?.trim()?.ifBlank { null },
-                )
-                _addMaterialState.value = AddMaterialUiState.Idle
-            } catch (e: Exception) {
-                _addMaterialState.value = AddMaterialUiState.Error("No se pudo agregar: ${e.message}")
+            _photoState.value = PhotoUiState.Uploading
+            when (val result = jobDetailRepository.addPhoto(jobUuid, imageUri)) {
+                is PhotoActionResult.Success -> _photoState.value = PhotoUiState.Idle
+                is PhotoActionResult.Error -> _photoState.value = PhotoUiState.Error(result.message)
             }
         }
     }
 
-    fun removeMaterial(jobMaterialUuid: String) {
+    fun retryPhotoUpload() {
         viewModelScope.launch {
-            jobDetailRepository.removeMaterial(jobUuid, jobMaterialUuid)
+            _photoState.value = PhotoUiState.Uploading
+            when (val result = jobDetailRepository.retryPhotoUpload(jobUuid)) {
+                is PhotoActionResult.Success -> _photoState.value = PhotoUiState.Idle
+                is PhotoActionResult.Error -> _photoState.value = PhotoUiState.Error(result.message)
+            }
         }
     }
 
-    fun clearAddMaterialError() {
-        _addMaterialState.value = AddMaterialUiState.Idle
+    fun removePhoto() {
+        viewModelScope.launch {
+            jobDetailRepository.removePhoto(jobUuid)
+        }
+    }
+
+    fun clearPhotoError() {
+        _photoState.value = PhotoUiState.Idle
     }
 
     /**

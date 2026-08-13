@@ -8,9 +8,13 @@ import androidx.room.PrimaryKey
 // (formatUpsert('job_photos', ...) en syncController.js):
 // "/jobs/{jobUuid}/photos/{uuid}/file" — se resuelve contra API_BASE_URL.
 //
-// Nota: esto es solo el registro/metadata. La Fase 7 (Fotos offline) es la
-// que se ocupa de guardar el archivo en almacenamiento interno y encolar su
-// subida; acá solo dejamos la entidad lista para que esa fase la use.
+// `localPath` / `uploadStatus` (Fase 6, Paso 4 — foto única de comercial):
+// se agregan para poder mostrar la foto de inmediato (archivo comprimido ya
+// guardado en almacenamiento interno) mientras se sube, y para poder
+// reintentar si la subida falla. No forman parte del contrato del backend
+// — son puramente locales, y un pull de /sync que traiga esta misma fila
+// las deja en sus valores por defecto (`null` / "synced"), lo cual es
+// correcto porque en ese punto la foto ya está confirmada en el servidor.
 @Entity(tableName = "job_photos", indices = [Index("jobUuid")])
 data class JobPhotoEntity(
     @PrimaryKey val uuid: String,
@@ -19,4 +23,7 @@ data class JobPhotoEntity(
     val url: String,
     val createdAt: String,
     val updatedAt: String,
+    val localPath: String? = null,
+    // "synced" | "uploading" | "error" — nunca viaja al backend.
+    val uploadStatus: String = "synced",
 )

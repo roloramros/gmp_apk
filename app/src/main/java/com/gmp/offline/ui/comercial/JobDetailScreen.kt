@@ -1,19 +1,23 @@
 package com.gmp.offline.ui.comercial
 
-import androidx.compose.foundation.clickable
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -22,40 +26,39 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gmp.offline.data.local.entities.MaterialEntity
+import coil.compose.AsyncImage
+import com.gmp.offline.BuildConfig
+import com.gmp.offline.data.local.entities.JobPhotoEntity
 import com.gmp.offline.ui.common.jobStatusColor
 import com.gmp.offline.ui.common.jobStatusLabel
 import com.gmp.offline.ui.theme.SolarAmber
 import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,13 +69,15 @@ fun JobDetailScreen(
 ) {
     val job by viewModel.job.collectAsStateWithLifecycle()
     val clientName by viewModel.clientName.collectAsStateWithLifecycle()
-    val materialRows by viewModel.materialRows.collectAsStateWithLifecycle()
     val workers by viewModel.workers.collectAsStateWithLifecycle()
-    val catalog by viewModel.catalog.collectAsStateWithLifecycle()
-    val addMaterialState by viewModel.addMaterialState.collectAsStateWithLifecycle()
+    val photo by viewModel.photo.collectAsStateWithLifecycle()
+    val photoState by viewModel.photoState.collectAsStateWithLifecycle()
 
-    var showAddMaterialDialog by remember { mutableStateOf(false) }
     var showCancelConfirm by remember { mutableStateOf(false) }
+
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> uri?.let { viewModel.addPhoto(it) } }
 
     val currentJob = job
 
@@ -170,58 +175,24 @@ fun JobDetailScreen(
                 }
             }
 
-            // --- Materiales ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Materiales", style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = { showAddMaterialDialog = true }) {
-                    Text("+ Agregar")
-                }
-            }
+            // --- Foto (una sola por montaje; comercial no ve materiales) ---
+            Text("Foto del montaje", style = MaterialTheme.typography.titleMedium)
 
-            if (materialRows.isEmpty()) {
-                Text(
-                    "Todavía no se agregaron materiales.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    materialRows.forEach { row ->
-                        MaterialRowCard(
-                            displayName = row.displayName,
-                            quantity = row.item.quantity,
-                            unitPrice = row.item.unitPrice,
-                            subtotal = row.subtotal,
-                            onRemove = { viewModel.removeMaterial(row.item.uuid) },
-                        )
-                    }
-                }
-            }
+            PhotoSection(
+                photo = photo,
+                photoState = photoState,
+                onPickPhoto = {
+                    pickImageLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                },
+                onRetry = { viewModel.retryPhotoUpload() },
+                onRemove = { viewModel.removePhoto() },
+                onDismissError = { viewModel.clearPhotoError() },
+            )
 
             Spacer(Modifier.height(8.dp))
         }
-    }
-
-    if (showAddMaterialDialog) {
-        AddMaterialDialog(
-            catalog = catalog,
-            state = addMaterialState,
-            onDismiss = {
-                showAddMaterialDialog = false
-                viewModel.clearAddMaterialError()
-            },
-            onConfirm = { materialUuid, freeText, quantity, unitPrice ->
-                viewModel.addMaterial(materialUuid, freeText, quantity, unitPrice)
-            },
-            onSaved = {
-                showAddMaterialDialog = false
-                viewModel.clearAddMaterialError()
-            },
-        )
     }
 
     if (showCancelConfirm) {
@@ -247,6 +218,108 @@ fun JobDetailScreen(
 }
 
 @Composable
+private fun PhotoSection(
+    photo: JobPhotoEntity?,
+    photoState: PhotoUiState,
+    onPickPhoto: () -> Unit,
+    onRetry: () -> Unit,
+    onRemove: () -> Unit,
+    onDismissError: () -> Unit,
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            when {
+                photoState is PhotoUiState.Uploading -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        CircularProgressIndicator(color = SolarGreen)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Subiendo foto...", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                photo != null -> {
+                    // Mientras no esté sincronizada, se muestra el archivo
+                    // local recién comprimido; una vez subida, la URL del
+                    // servidor (Coil resuelve ambos casos igual).
+                    val imageModel = if (photo.uploadStatus != "synced" && photo.localPath != null) {
+                        File(photo.localPath)
+                    } else {
+                        BuildConfig.API_BASE_URL.trimEnd('/') + photo.url
+                    }
+                    AsyncImage(
+                        model = imageModel,
+                        contentDescription = "Foto del montaje",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(4f / 3f)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    if (photo.uploadStatus == "error") {
+                        Text(
+                            "No se pudo subir la foto todavía.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SolarError,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (photo.uploadStatus == "error") {
+                            Button(
+                                onClick = onRetry,
+                                colors = ButtonDefaults.buttonColors(containerColor = SolarAmber, contentColor = SolarGreenDark),
+                            ) {
+                                Text("Reintentar subida")
+                            }
+                        } else {
+                            OutlinedButton(onClick = onPickPhoto) {
+                                Text("Cambiar foto")
+                            }
+                        }
+                        IconButton(onClick = onRemove) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Quitar foto", tint = SolarError)
+                        }
+                    }
+                }
+                else -> {
+                    OutlinedButton(
+                        onClick = onPickPhoto,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Añadir foto")
+                    }
+                }
+            }
+
+            if (photoState is PhotoUiState.Error) {
+                Spacer(Modifier.height(8.dp))
+                Text(photoState.message, color = SolarError, style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onDismissError) {
+                    Text("Ok")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DetailRow(label: String, value: String?) {
     if (value.isNullOrBlank()) return
     Column(modifier = Modifier.padding(top = 8.dp)) {
@@ -258,194 +331,3 @@ private fun DetailRow(label: String, value: String?) {
         Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
-
-@Composable
-private fun MaterialRowCard(
-    displayName: String,
-    quantity: String,
-    unitPrice: String?,
-    subtotal: Double?,
-    onRemove: () -> Unit,
-) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                val priceText = unitPrice?.let { " · $it c/u" } ?: ""
-                Text(
-                    "Cantidad: $quantity$priceText",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (subtotal != null) {
-                    Text(
-                        "Subtotal: ${"%.2f".format(subtotal)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Filled.Delete, contentDescription = "Quitar", tint = SolarError)
-            }
-        }
-    }
-}
-
-@Composable
-private fun AddMaterialDialog(
-    catalog: List<MaterialEntity>,
-    state: AddMaterialUiState,
-    onDismiss: () -> Unit,
-    onConfirm: (materialUuid: String?, freeText: String?, quantity: String, unitPrice: String?) -> Unit,
-    onSaved: () -> Unit,
-) {
-    var useCatalog by remember { mutableStateOf(catalog.isNotEmpty()) }
-    var expanded by remember { mutableStateOf(false) }
-    var selectedMaterial by remember { mutableStateOf<MaterialEntity?>(null) }
-    var freeText by remember { mutableStateOf("") }
-    var quantity by remember { mutableStateOf("1") }
-    var unitPrice by remember { mutableStateOf("") }
-    // Se pone en true recién cuando el usuario aprieta "Agregar" al menos
-    // una vez; evita que el diálogo se cierre solo apenas se abre (el
-    // estado inicial también es Idle).
-    var attemptedSave by remember { mutableStateOf(false) }
-
-    // El ViewModel no tiene un estado "Saved" propio para agregar material
-    // (a diferencia de crear/editar job, acá no se navega a ningún lado):
-    // se interpreta éxito como "volvió a Idle después de haber intentado
-    // guardar", y ahí se cierra el diálogo solo.
-    LaunchedEffect(state, attemptedSave) {
-        if (attemptedSave && state is AddMaterialUiState.Idle) {
-            onSaved()
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Agregar material") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = useCatalog,
-                        onClick = { useCatalog = true },
-                        label = { Text("Del catálogo") },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = SolarGreen.copy(alpha = 0.18f)),
-                    )
-                    FilterChip(
-                        selected = !useCatalog,
-                        onClick = { useCatalog = false },
-                        label = { Text("Texto libre") },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = SolarGreen.copy(alpha = 0.18f)),
-                    )
-                }
-
-                if (useCatalog) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedTextField(
-                            value = selectedMaterial?.name ?: "",
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Material") },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = gmpFieldColorsDialog(),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable { expanded = true },
-                        )
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            if (catalog.isEmpty()) {
-                                DropdownMenuItem(text = { Text("No hay materiales en el catálogo") }, onClick = {}, enabled = false)
-                            }
-                            catalog.forEach { material ->
-                                DropdownMenuItem(
-                                    text = { Text(material.name) },
-                                    onClick = {
-                                        selectedMaterial = material
-                                        unitPrice = material.defaultPrice ?: unitPrice
-                                        expanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    OutlinedTextField(
-                        value = freeText,
-                        onValueChange = { freeText = it },
-                        label = { Text("Descripción") },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = gmpFieldColorsDialog(),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = quantity,
-                        onValueChange = { quantity = it },
-                        label = { Text("Cantidad") },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = gmpFieldColorsDialog(),
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = unitPrice,
-                        onValueChange = { unitPrice = it },
-                        label = { Text("Precio unit. (opc.)") },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = gmpFieldColorsDialog(),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                if (state is AddMaterialUiState.Error) {
-                    Text(state.message, color = SolarError, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    attemptedSave = true
-                    onConfirm(
-                        if (useCatalog) selectedMaterial?.uuid else null,
-                        if (!useCatalog) freeText else null,
-                        quantity,
-                        unitPrice.ifBlank { null },
-                    )
-                },
-                enabled = state !is AddMaterialUiState.Saving,
-                colors = ButtonDefaults.buttonColors(containerColor = SolarAmber, contentColor = SolarGreenDark),
-            ) {
-                Text("Agregar")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cerrar")
-            }
-        },
-    )
-}
-
-@Composable
-private fun gmpFieldColorsDialog() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = SolarGreen,
-    unfocusedBorderColor = SolarGreen.copy(alpha = 0.35f),
-    focusedLabelColor = SolarGreen,
-    cursorColor = SolarGreen,
-)

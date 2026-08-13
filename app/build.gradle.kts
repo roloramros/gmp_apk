@@ -58,6 +58,15 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+
+    // Lectura de orientación EXIF al comprimir fotos de montaje (Fase 6,
+    // Paso 4) — corrige fotos "acostadas" al recomprimir con BitmapFactory.
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
+    // Coil — carga de imágenes (foto local recién comprimida o la ya
+    // subida al servidor) en Compose sin tener que manejar Bitmaps a mano
+    // en la UI.
+    implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")

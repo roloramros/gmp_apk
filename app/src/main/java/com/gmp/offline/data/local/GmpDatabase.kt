@@ -22,12 +22,15 @@ import com.gmp.offline.data.local.entities.StaffEntity
 // Versión 2 (Fase 6, Paso 3): se agregan campos de "montaje" a JobEntity
 // (clientName, clientCi, clientPhone, latitude, longitude, reference,
 // siteNotes, price, paymentMethod, visitDate, proposedDate) para replicar
-// exactamente la pantalla de comercial de la web legada. Se usa
-// `fallbackToDestructiveMigration()` (ver DatabaseModule.kt) porque el
-// proyecto todavía está en desarrollo temprano — el próximo `/sync` repuebla
-// Room desde cero sin pérdida de datos real (la fuente de verdad es el
-// backend). Cuando la app esté en producción con usuarios reales, cambiar
-// esto por una Migration explícita.
+// exactamente la pantalla de comercial de la web legada.
+// Versión 3 (Fase 6, Paso 4): se agregan `localPath`/`uploadStatus` a
+// JobPhotoEntity para la foto única de comercial (ver comentario en la
+// entidad).
+// Se usa `fallbackToDestructiveMigration()` (ver DatabaseModule.kt) porque
+// el proyecto todavía está en desarrollo temprano — el próximo `/sync`
+// repuebla Room desde cero sin pérdida de datos real (la fuente de verdad
+// es el backend). Cuando la app esté en producción con usuarios reales,
+// cambiar esto por una Migration explícita.
 @Database(
     entities = [
         JobEntity::class,
@@ -38,7 +41,7 @@ import com.gmp.offline.data.local.entities.StaffEntity
         StaffEntity::class,
         PendingOperationEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class GmpDatabase : RoomDatabase() {
