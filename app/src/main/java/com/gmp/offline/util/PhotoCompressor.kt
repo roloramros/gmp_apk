@@ -28,9 +28,15 @@ object PhotoCompressor {
         // 1) Solo leer las dimensiones primero (inJustDecodeBounds), para
         //    poder calcular un inSampleSize y no cargar la imagen original
         //    completa en memoria si es muy grande.
+        //    OJO: BitmapFactory.decodeStream() con inJustDecodeBounds=true
+        //    devuelve `null` A PROPÓSITO (solo rellena `bounds`, no decodifica
+        //    la imagen) — no se puede usar ese resultado para chequear si el
+        //    stream se abrió bien, o el `?:` dispara siempre. Se valida el
+        //    stream por separado, antes de usarlo.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        val boundsStream = resolver.openInputStream(uri)
             ?: throw IOException("No se pudo abrir la imagen seleccionada")
+        boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
 
         var sampleSize = 1
         while (bounds.outWidth / sampleSize > MAX_DIMENSION * 2 ||
