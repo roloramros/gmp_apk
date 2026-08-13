@@ -97,9 +97,10 @@ fun AdminHomeScreen(
             )
         },
         floatingActionButton = {
-            // Por ahora solo la pestaña de Montajes tiene acción de "+"
-            // (crear job). Personal y Materiales van a tener la suya
-            // propia cuando se construyan esas pestañas.
+            // Solo la pestaña de Montajes usa el FAB de "+" (crear job).
+            // Materiales tiene su propio botón "+ Añadir material" arriba
+            // del listado (MaterialsTabContent), igual que la web legada.
+            // Personal va a definir el suyo cuando se construya esa pestaña.
             if (currentTab == AdminTab.MONTAJES) {
                 FloatingActionButton(
                     onClick = onCreateJob,
@@ -140,7 +141,7 @@ fun AdminHomeScreen(
                     onOpenJob = onOpenJob,
                 )
                 AdminTab.PERSONAL -> AdminTabPlaceholder("Gestión de Personal")
-                AdminTab.MATERIALES -> AdminTabPlaceholder("Gestión de Materiales")
+                AdminTab.MATERIALES -> MaterialsTabContent()
             }
         }
     }
