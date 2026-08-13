@@ -9,16 +9,20 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.gmp.offline.data.repository.AuthRepository
 import com.gmp.offline.ui.HomeScreen
+import com.gmp.offline.ui.admin.AdminHomeScreen
 import com.gmp.offline.ui.comercial.ComercialJobsListScreen
 import com.gmp.offline.ui.comercial.JobDetailScreen
 import com.gmp.offline.ui.comercial.JobFormScreen
 import com.gmp.offline.ui.login.LoginScreen
 
 // Rutas del grafo. Desde Fase 6 Paso 2: se agregan job_form y job_detail
-// para el flujo del rol comercial. HOME sigue existiendo como router: elige
-// qué pantalla mostrar según el rol de la sesión (ver composable HOME más
-// abajo). admin/trabajador siguen viendo el placeholder de debug hasta que
-// se construyan sus propias pantallas (fuera de alcance de este paso).
+// para el flujo del rol comercial. Desde Paso 5: rol admin tiene su propia
+// pantalla (AdminHomeScreen, con pestañas) pero reusa las mismas rutas
+// job_form/job_detail que comercial, porque esas pantallas son de negocio
+// puro (sin gating por rol). HOME sigue existiendo como router: elige qué
+// pantalla mostrar según el rol de la sesión. trabajador sigue viendo el
+// placeholder de debug hasta que se construya su pantalla (fuera de
+// alcance de este paso).
 object GmpRoutes {
     const val LOGIN = "login"
     const val HOME = "home"
@@ -51,11 +55,11 @@ fun GmpNavGraph(
             )
         }
         composable(GmpRoutes.HOME) {
-            // Router por rol: por ahora solo "comercial" tiene pantallas
-            // reales (Fase 6, Paso 2). Los demás roles siguen viendo el
-            // placeholder de debug hasta que se construyan sus pantallas.
-            if (authRepository.currentRole == "comercial") {
-                ComercialJobsListScreen(
+            // Router por rol: comercial y admin ya tienen pantallas reales
+            // (Fase 6, Pasos 2-5). Trabajador sigue viendo el placeholder
+            // de debug hasta que se construya su pantalla.
+            when (authRepository.currentRole) {
+                "comercial" -> ComercialJobsListScreen(
                     onLoggedOut = {
                         navController.navigate(GmpRoutes.LOGIN) {
                             popUpTo(GmpRoutes.HOME) { inclusive = true }
@@ -68,8 +72,20 @@ fun GmpNavGraph(
                         navController.navigate(GmpRoutes.jobDetail(jobUuid))
                     },
                 )
-            } else {
-                HomeScreen(
+                "admin" -> AdminHomeScreen(
+                    onLoggedOut = {
+                        navController.navigate(GmpRoutes.LOGIN) {
+                            popUpTo(GmpRoutes.HOME) { inclusive = true }
+                        }
+                    },
+                    onCreateJob = {
+                        navController.navigate(GmpRoutes.jobForm())
+                    },
+                    onOpenJob = { jobUuid ->
+                        navController.navigate(GmpRoutes.jobDetail(jobUuid))
+                    },
+                )
+                else -> HomeScreen(
                     onLoggedOut = {
                         navController.navigate(GmpRoutes.LOGIN) {
                             popUpTo(GmpRoutes.HOME) { inclusive = true }

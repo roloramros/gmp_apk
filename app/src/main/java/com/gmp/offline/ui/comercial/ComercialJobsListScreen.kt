@@ -53,6 +53,11 @@ import com.gmp.offline.ui.theme.SolarGreenDark
 // las mismas 4 columnas que la tabla `myJobsBody` de la web. Indicador de
 // "pendiente de sync" agregado (no existe en la web, es propio del modelo
 // offline-first de la app).
+//
+// El contenido de la lista (StatusFilterBar + filas) vive en el composable
+// público `JobsListContent` más abajo, para poder reusarlo tal cual desde
+// la pestaña "Gestión de Montajes" de AdminHomeScreen (ui.admin) sin
+// duplicar la lógica de filtros ni el diseño de las filas.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ComercialJobsListScreen(
@@ -97,42 +102,63 @@ fun ComercialJobsListScreen(
             }
         },
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            StatusFilterBar(
-                counts = statusCounts,
-                activeFilters = activeFilters,
-                onToggle = { viewModel.toggleStatusFilter(it) },
-                onClear = { viewModel.clearStatusFilters() },
-            )
+        JobsListContent(
+            jobRows = jobRows,
+            statusCounts = statusCounts,
+            activeFilters = activeFilters,
+            onToggle = { viewModel.toggleStatusFilter(it) },
+            onClear = { viewModel.clearStatusFilters() },
+            onOpenJob = onOpenJob,
+            modifier = Modifier.padding(innerPadding),
+        )
+    }
+}
 
-            if (jobRows.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        if (activeFilters.isEmpty()) {
-                            "Aún no has registrado ningún montaje. Tocá el + para crear el primero."
-                        } else {
-                            "No hay montajes con los filtros seleccionados."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(jobRows, key = { it.job.uuid }) { row ->
-                        JobRowCard(row = row, onClick = { onOpenJob(row.job.uuid) })
-                    }
+// Contenido reusable de la lista de montajes: barra de filtros por estado +
+// lista de jobs (o mensaje de estado vacío). Sin Scaffold ni FAB propios,
+// para poder embeberse tanto en ComercialJobsListScreen como en la pestaña
+// "Gestión de Montajes" de AdminHomeScreen.
+@Composable
+fun JobsListContent(
+    jobRows: List<ComercialJobRow>,
+    statusCounts: Map<String, Int>,
+    activeFilters: Set<String>,
+    onToggle: (String) -> Unit,
+    onClear: () -> Unit,
+    onOpenJob: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        StatusFilterBar(
+            counts = statusCounts,
+            activeFilters = activeFilters,
+            onToggle = onToggle,
+            onClear = onClear,
+        )
+
+        if (jobRows.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (activeFilters.isEmpty()) {
+                        "Aún no hay montajes registrados. Tocá el + para crear el primero."
+                    } else {
+                        "No hay montajes con los filtros seleccionados."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(jobRows, key = { it.job.uuid }) { row ->
+                    JobRowCard(row = row, onClick = { onOpenJob(row.job.uuid) })
                 }
             }
         }
