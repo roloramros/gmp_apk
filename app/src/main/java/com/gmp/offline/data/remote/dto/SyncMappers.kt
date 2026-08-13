@@ -27,6 +27,17 @@ fun JobDto.toEntity(): JobEntity = JobEntity(
     cancelledAt = cancelledAt,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    clientName = clientName,
+    clientCi = clientCi,
+    clientPhone = clientPhone,
+    latitude = latitude,
+    longitude = longitude,
+    reference = reference,
+    siteNotes = siteNotes,
+    price = price,
+    paymentMethod = paymentMethod,
+    visitDate = visitDate,
+    proposedDate = proposedDate,
 )
 
 fun JobWorkerDto.toEntity(): JobWorkerEntity = JobWorkerEntity(

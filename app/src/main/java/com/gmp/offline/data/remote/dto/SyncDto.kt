@@ -43,6 +43,20 @@ data class JobDto(
     @SerializedName("cancelled_at") val cancelledAt: String?,
     @SerializedName("created_at") val createdAt: String,
     @SerializedName("updated_at") val updatedAt: String,
+    // --- Campos "montaje" (Fase 6 Paso 3) — agregados a syncController.js
+    // en el backend; faltaban acá, por eso cada /sync los pisaba con null
+    // en Room (ver CommandQueue/SyncEngine, bug reportado 13/08).
+    @SerializedName("client_name") val clientName: String? = null,
+    @SerializedName("client_ci") val clientCi: String? = null,
+    @SerializedName("client_phone") val clientPhone: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val reference: String? = null,
+    @SerializedName("site_notes") val siteNotes: String? = null,
+    val price: String? = null,
+    @SerializedName("payment_method") val paymentMethod: String? = null,
+    @SerializedName("visit_date") val visitDate: String? = null,
+    @SerializedName("proposed_date") val proposedDate: String? = null,
 )
 
 data class JobWorkerDto(
