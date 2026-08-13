@@ -15,9 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,7 +31,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,6 +49,10 @@ import com.gmp.offline.ui.theme.SolarAmber
 import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 // Formulario de crear/editar un "montaje" (rol comercial) — réplica exacta
 // de los campos del modal "Nuevo montaje" de la web legada (ver
@@ -179,8 +188,8 @@ fun JobFormScreen(
             }
 
             SectionLabel("Fechas")
-            GmpTextField(visitDate, { viewModel.visitDate.value = it }, "Fecha de visita previa (AAAA-MM-DD)")
-            GmpTextField(proposedDate, { viewModel.proposedDate.value = it }, "Fecha propuesta de montaje (AAAA-MM-DD)")
+            GmpDateField(visitDate, { viewModel.visitDate.value = it }, "Fecha de visita previa")
+            GmpDateField(proposedDate, { viewModel.proposedDate.value = it }, "Fecha propuesta de montaje")
 
             SectionLabel("Cliente registrado (opcional)")
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -272,6 +281,80 @@ private fun GmpTextField(
         colors = gmpFieldColors(),
         modifier = modifier.fillMaxWidth(),
     )
+}
+
+// Selector de fecha con Material3 DatePicker, en vez de escritura manual.
+// Guarda/lee el mismo formato "YYYY-MM-DD" (UTC, sin hora) que espera el
+// backend en visit_date/proposed_date — mismo criterio que el fix de
+// to_char(...,'YYYY-MM-DD') aplicado del lado del servidor, para no volver
+// a arrastrar corrimiento de un día por timezone.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GmpDateField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = null, tint = SolarGreen) },
+            shape = RoundedCornerShape(14.dp),
+            colors = gmpFieldColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { showDialog = true },
+        )
+    }
+
+    if (showDialog) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = isoDateToUtcMillis(value) ?: System.currentTimeMillis(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        onValueChange(utcMillisToIsoDate(millis))
+                    }
+                    showDialog = false
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("Cancelar")
+                }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+}
+
+private fun utcDateFormat(): SimpleDateFormat =
+    SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+
+private fun utcMillisToIsoDate(millis: Long): String = utcDateFormat().format(Date(millis))
+
+private fun isoDateToUtcMillis(isoDate: String): Long? {
+    if (isoDate.isBlank()) return null
+    return try {
+        utcDateFormat().parse(isoDate)?.time
+    } catch (e: Exception) {
+        null
+    }
 }
 
 @Composable
