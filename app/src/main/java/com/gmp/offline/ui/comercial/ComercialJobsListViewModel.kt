@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 // Fila de la lista: el job tal como está en Room + su nombre de cliente
@@ -97,7 +98,9 @@ class ComercialJobsListViewModel @Inject constructor(
 
     fun logout(onLoggedOut: () -> Unit) {
         syncScheduler.cancelAll()
-        authRepository.logout()
-        onLoggedOut()
+        viewModelScope.launch {
+            authRepository.logout()
+            onLoggedOut()
+        }
     }
 }

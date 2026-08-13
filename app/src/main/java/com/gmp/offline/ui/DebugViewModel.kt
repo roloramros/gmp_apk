@@ -45,8 +45,10 @@ class DebugViewModel @Inject constructor(
 
     fun logout(onLoggedOut: () -> Unit) {
         syncScheduler.cancelAll()
-        authRepository.logout()
-        onLoggedOut()
+        viewModelScope.launch {
+            authRepository.logout()
+            onLoggedOut()
+        }
     }
 
     fun loginAndSync(companyId: Int, phone: String, password: String) {
