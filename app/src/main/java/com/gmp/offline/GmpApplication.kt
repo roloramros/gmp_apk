@@ -3,6 +3,8 @@ package com.gmp.offline
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import coil.Coil
+import coil.ImageLoader
 import com.gmp.offline.sync.NetworkConnectivityObserver
 import com.gmp.offline.sync.SyncScheduler
 import dagger.hilt.android.HiltAndroidApp
@@ -26,6 +28,13 @@ class GmpApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var syncScheduler: SyncScheduler
 
+    // Mismo OkHttpClient autenticado que usa Retrofit (ver NetworkModule) —
+    // se registra como el ImageLoader por defecto de Coil para que
+    // AsyncImage() pueda cargar fotos del backend sin tener que pasar el
+    // loader a mano en cada pantalla.
+    @Inject
+    lateinit var imageLoader: ImageLoader
+
     // Vive tanto como el proceso de la app — se usa solo para escuchar
     // conectividad y disparar syncs, no para trabajo pesado.
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -37,6 +46,7 @@ class GmpApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        Coil.setImageLoader(imageLoader)
         observeConnectivityForSync()
     }
 

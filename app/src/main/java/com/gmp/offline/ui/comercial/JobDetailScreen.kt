@@ -3,15 +3,18 @@ package com.gmp.offline.ui.comercial
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,9 +47,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -226,6 +232,8 @@ private fun PhotoSection(
     onRemove: () -> Unit,
     onDismissError: () -> Unit,
 ) {
+    var showFullScreen by remember { mutableStateOf(false) }
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -235,45 +243,48 @@ private fun PhotoSection(
         Column(modifier = Modifier.padding(16.dp)) {
             when {
                 photoState is PhotoUiState.Uploading -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        CircularProgressIndicator(color = SolarGreen)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Subiendo foto...", style = MaterialTheme.typography.bodySmall)
+                        CircularProgressIndicator(color = SolarGreen, modifier = Modifier.size(24.dp))
+                        Text("Subiendo foto...", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 photo != null -> {
-                    // Mientras no esté sincronizada, se muestra el archivo
-                    // local recién comprimido; una vez subida, la URL del
-                    // servidor (Coil resuelve ambos casos igual).
-                    val imageModel = if (photo.uploadStatus != "synced" && photo.localPath != null) {
-                        File(photo.localPath)
-                    } else {
-                        BuildConfig.API_BASE_URL.trimEnd('/') + photo.url
-                    }
-                    AsyncImage(
-                        model = imageModel,
-                        contentDescription = "Foto del montaje",
-                        contentScale = ContentScale.Crop,
+                    // Indicador compacto (no la imagen en sí) — tocarlo abre
+                    // la foto en pantalla completa. Evita cargar/decodificar
+                    // la imagen grande dentro de la lista de detalle.
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .aspectRatio(4f / 3f)
-                            .clip(RoundedCornerShape(12.dp)),
-                    )
-                    Spacer(Modifier.height(8.dp))
-
-                    if (photo.uploadStatus == "error") {
-                        Text(
-                            "No se pudo subir la foto todavía.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = SolarError,
-                        )
-                        Spacer(Modifier.height(8.dp))
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(enabled = photo.uploadStatus != "error") { showFullScreen = true }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SolarGreen.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("📷", style = MaterialTheme.typography.titleLarge)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Foto cargada", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text(
+                                if (photo.uploadStatus == "error") "No se pudo subir todavía" else "Tocar para ver en pantalla completa",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (photo.uploadStatus == "error") SolarError else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
+
+                    Spacer(Modifier.height(8.dp))
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -314,6 +325,47 @@ private fun PhotoSection(
                 TextButton(onClick = onDismissError) {
                     Text("Ok")
                 }
+            }
+        }
+    }
+
+    if (showFullScreen && photo != null) {
+        FullScreenPhotoViewer(photo = photo, onDismiss = { showFullScreen = false })
+    }
+}
+
+@Composable
+private fun FullScreenPhotoViewer(photo: JobPhotoEntity, onDismiss: () -> Unit) {
+    val imageModel = if (photo.uploadStatus != "synced" && photo.localPath != null) {
+        File(photo.localPath)
+    } else {
+        BuildConfig.API_BASE_URL.trimEnd('/') + photo.url
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            AsyncImage(
+                model = imageModel,
+                contentDescription = "Foto del montaje",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .align(Alignment.Center),
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp),
+            ) {
+                Icon(Icons.Filled.ArrowBack, contentDescription = "Cerrar", tint = Color.White)
             }
         }
     }
