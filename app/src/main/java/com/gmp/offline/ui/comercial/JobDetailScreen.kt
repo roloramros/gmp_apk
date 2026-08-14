@@ -111,7 +111,7 @@ fun JobDetailScreen(
                     }
                 },
                 actions = {
-                    if (currentJob != null) {
+                    if (currentJob != null && viewModel.canEditJob) {
                         IconButton(onClick = { onEditJob(currentJob.uuid) }) {
                             Icon(Icons.Filled.Edit, contentDescription = "Editar", tint = SolarGreen)
                         }
@@ -140,7 +140,6 @@ fun JobDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // --- Info del job ("montaje") ---
             var showFullDetails by remember { mutableStateOf(false) }
 
             Card(
@@ -186,7 +185,8 @@ fun JobDetailScreen(
                             )
                         }
 
-                        val canCancel = currentJob.status == "pending" || currentJob.status == "assigned"
+                        val canCancel = viewModel.canCancelJob &&
+                            (currentJob.status == "pending" || currentJob.status == "assigned")
                         if (canCancel) {
                             Spacer(Modifier.height(12.dp))
                             OutlinedButton(
@@ -214,7 +214,6 @@ fun JobDetailScreen(
                 }
             }
 
-            // --- Asignación de personal y fecha oficial (solo admin) ---
             if (viewModel.isAdmin) {
                 AssignmentCard(
                     scheduledDate = currentJob.scheduledAt?.take(10),
@@ -224,12 +223,12 @@ fun JobDetailScreen(
                 )
             }
 
-            // --- Foto (una sola por montaje; comercial no ve materiales) ---
             Text("Foto del montaje", style = MaterialTheme.typography.titleMedium)
 
             PhotoSection(
                 photo = photo,
                 photoState = photoState,
+                canManagePhoto = viewModel.canManagePhoto,
                 onPickPhoto = {
                     pickImageLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
@@ -266,17 +265,6 @@ fun JobDetailScreen(
     }
 }
 
-/**
- * Card de "Asignación de personal y fecha de montaje" — solo admin (ver
- * jobsActionsController.js: `/assign`, `/unassign` son `solo admin`).
- *
- * Los checkboxes y la fecha editan un borrador local (no se mandan al
- * tocarlos); recién se aplican todos juntos al tocar "Confirmar
- * asignación" (JobDetailViewModel.confirmAssignment), que diferencia contra
- * lo ya asignado y manda solo los cambios reales. No valida solapes de
- * horario a propósito: un mismo trabajador puede quedar asignado a más de
- * un montaje el mismo día.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AssignmentCard(
@@ -285,9 +273,6 @@ private fun AssignmentCard(
     assignableStaff: List<StaffEntity>,
     onConfirm: (scheduledDate: String?, selectedWorkerUuids: Set<String>) -> Unit,
 ) {
-    // Borrador local: se re-seedea desde el estado real solo cuando cambia
-    // (por ejemplo, tras confirmar y que /sync devuelva la confirmación),
-    // no en cada recomposición.
     var dateDraft by remember(scheduledDate) { mutableStateOf(scheduledDate.orEmpty()) }
     var selectedDraft by remember(assignedWorkerUuids) { mutableStateOf(assignedWorkerUuids) }
     var showFullAssignment by remember { mutableStateOf(false) }
@@ -475,6 +460,7 @@ private fun isoAssignDateToUtcMillis(isoDate: String): Long? {
 private fun PhotoSection(
     photo: JobPhotoEntity?,
     photoState: PhotoUiState,
+    canManagePhoto: Boolean,
     onPickPhoto: () -> Unit,
     onRetry: () -> Unit,
     onRemove: () -> Unit,
@@ -501,9 +487,6 @@ private fun PhotoSection(
                     }
                 }
                 photo != null -> {
-                    // Indicador compacto (no la imagen en sí) — tocarlo abre
-                    // la foto en pantalla completa. Evita cargar/decodificar
-                    // la imagen grande dentro de la lista de detalle.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -519,101 +502,95 @@ private fun PhotoSection(
                                 .background(SolarGreen.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("📷", style = MaterialTheme.typography.titleLarge)
+                            Text("📷", style = MaterialTheme.typography.titleMedium)
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Foto cargada", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             Text(
-                                if (photo.uploadStatus == "error") "No se pudo subir todavía" else "Tocar para ver en pantalla completa",
+                                when (photo.uploadStatus) {
+                                    "error" -> "Error al subir"
+                                    "uploading" -> "Subiendo..."
+                                    else -> "Tocar para ver"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (photo.uploadStatus == "error") SolarError else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
 
-                    Spacer(Modifier.height(8.dp))
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (photo.uploadStatus == "error") {
-                            Button(
-                                onClick = onRetry,
-                                colors = ButtonDefaults.buttonColors(containerColor = SolarAmber, contentColor = SolarGreenDark),
-                            ) {
-                                Text("Reintentar subida")
+                    if (canManagePhoto) {
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (photo.uploadStatus == "error") {
+                                Button(
+                                    onClick = onRetry,
+                                    colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
+                                ) {
+                                    Text("Reintentar")
+                                }
                             }
-                        } else {
-                            OutlinedButton(onClick = onPickPhoto) {
-                                Text("Cambiar foto")
+                            OutlinedButton(onClick = onRemove) {
+                                Icon(Icons.Filled.Delete, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("Quitar")
                             }
-                        }
-                        IconButton(onClick = onRemove) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Quitar foto", tint = SolarError)
                         }
                     }
                 }
                 else -> {
-                    OutlinedButton(
-                        onClick = onPickPhoto,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Añadir foto")
+                    Text(
+                        if (canManagePhoto) "Todavía no hay foto del montaje." else "No hay foto del montaje.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (canManagePhoto) {
+                        Spacer(Modifier.height(10.dp))
+                        Button(
+                            onClick = onPickPhoto,
+                            colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Agregar foto")
+                        }
                     }
                 }
             }
 
-            if (photoState is PhotoUiState.Error) {
-                Spacer(Modifier.height(8.dp))
+            if (photoState is PhotoUiState.Error && canManagePhoto) {
+                Spacer(Modifier.height(10.dp))
                 Text(photoState.message, color = SolarError, style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = onDismissError) {
-                    Text("Ok")
-                }
+                TextButton(onClick = onDismissError) { Text("Cerrar") }
             }
         }
     }
 
-    if (showFullScreen && photo != null) {
-        FullScreenPhotoViewer(photo = photo, onDismiss = { showFullScreen = false })
-    }
-}
-
-@Composable
-private fun FullScreenPhotoViewer(photo: JobPhotoEntity, onDismiss: () -> Unit) {
-    val imageModel = if (photo.uploadStatus != "synced" && photo.localPath != null) {
-        File(photo.localPath)
-    } else {
-        BuildConfig.API_BASE_URL.trimEnd('/') + photo.url
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black),
+    if (showFullScreen && photo != null && photo.uploadStatus != "error") {
+        Dialog(
+            onDismissRequest = { showFullScreen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
-            AsyncImage(
-                model = imageModel,
-                contentDescription = "Foto del montaje",
-                contentScale = ContentScale.Fit,
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .align(Alignment.Center),
-            )
-            IconButton(
-                onClick = onDismiss,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp),
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Cerrar", tint = Color.White)
+                val model: Any = photo.localPath?.let { File(it) }
+                    ?: "${BuildConfig.API_BASE_URL.trimEnd('/')}${photo.url}"
+                AsyncImage(
+                    model = model,
+                    contentDescription = "Foto del montaje",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                TextButton(
+                    onClick = { showFullScreen = false },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                ) {
+                    Text("Cerrar", color = Color.White)
+                }
             }
         }
     }
@@ -622,12 +599,16 @@ private fun FullScreenPhotoViewer(photo: JobPhotoEntity, onDismiss: () -> Unit) 
 @Composable
 private fun DetailRow(label: String, value: String?) {
     if (value.isNullOrBlank()) return
-    Column(modifier = Modifier.padding(top = 8.dp)) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(value, style = MaterialTheme.typography.bodyMedium)
-    }
+    Spacer(Modifier.height(6.dp))
+    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(value, style = MaterialTheme.typography.bodyMedium)
 }
+
+private data class PaymentMethodOption(val value: String, val label: String)
+
+private val PAYMENT_METHODS = listOf(
+    PaymentMethodOption("cash", "Efectivo"),
+    PaymentMethodOption("transfer", "Transferencia"),
+    PaymentMethodOption("card", "Tarjeta"),
+    PaymentMethodOption("credit", "Crédito"),
+)
