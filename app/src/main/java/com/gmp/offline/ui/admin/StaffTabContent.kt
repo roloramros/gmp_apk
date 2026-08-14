@@ -55,8 +55,9 @@ import com.gmp.offline.ui.theme.SolarSky
 
 // Pestaña "Gestión de Personal" del admin — réplica de la sección
 // "Personal" de la web legada (index.html: tabla Nombre/Teléfono/Rol +
-// botón "+ Añadir" arriba, modal para crear con nombre/teléfono (código de
-// país + número)/contraseña inicial/rol, y baja con confirmación).
+// botón "+ Añadir" arriba, modal para crear con nombre/teléfono/contraseña
+// inicial/rol, y baja con confirmación). El selector de código de país que
+// tenía la web se sacó a pedido: el teléfono va tal cual se escribe.
 //
 // El informe de trabajos por trabajador (📋 en la web, `openWorkerReportModal`)
 // queda FUERA de este paso — no se pidió, se puede agregar después como
@@ -127,8 +128,8 @@ fun StaffTabContent(
                 showForm = false
                 viewModel.clearError()
             },
-            onSave = { fullName, countryCode, phoneNumber, password, role ->
-                viewModel.createStaff(fullName, countryCode, phoneNumber, password, role) {
+            onSave = { fullName, phoneNumber, password, role ->
+                viewModel.createStaff(fullName, phoneNumber, password, role) {
                     showForm = false
                 }
             },
@@ -217,21 +218,20 @@ private fun RoleTag(role: String) {
     }
 }
 
-// Modal de alta — mismos 4 campos que #staffModalOverlay en la web: Nombre,
-// Teléfono (código de país + número), Contraseña inicial, Rol.
+// Modal de alta — Nombre, Teléfono, Contraseña inicial, Rol. (La web
+// legada tenía además un selector de código de país; se sacó a pedido —
+// el teléfono se guarda tal cual se escribe acá).
 @Composable
 private fun StaffFormDialog(
     isSaving: Boolean,
     errorMessage: String?,
     onDismiss: () -> Unit,
-    onSave: (fullName: String, countryCode: String, phoneNumber: String, password: String, role: String) -> Unit,
+    onSave: (fullName: String, phoneNumber: String, password: String, role: String) -> Unit,
 ) {
     var fullName by remember { mutableStateOf("") }
-    var countryCode by remember { mutableStateOf(STAFF_COUNTRY_CODES.first()) }
     var phoneNumber by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(STAFF_ROLES.first().value) }
-    var countryMenuExpanded by remember { mutableStateOf(false) }
     var roleMenuExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -250,47 +250,16 @@ private fun StaffFormDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.width(96.dp)) {
-                        OutlinedTextField(
-                            value = countryCode,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Código") },
-                            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = SolarGreen) },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = staffFieldColors(),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable { countryMenuExpanded = true },
-                        )
-                        DropdownMenu(expanded = countryMenuExpanded, onDismissRequest = { countryMenuExpanded = false }) {
-                            STAFF_COUNTRY_CODES.forEach { code ->
-                                DropdownMenuItem(
-                                    text = { Text(code) },
-                                    onClick = {
-                                        countryCode = code
-                                        countryMenuExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                    OutlinedTextField(
-                        value = phoneNumber,
-                        onValueChange = { phoneNumber = it },
-                        label = { Text("Teléfono") },
-                        placeholder = { Text("Número sin código") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = staffFieldColors(),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = { Text("Teléfono") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = staffFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
                 OutlinedTextField(
                     value = password,
@@ -342,7 +311,7 @@ private fun StaffFormDialog(
             if (isSaving) {
                 CircularProgressIndicator(modifier = Modifier.padding(horizontal = 16.dp), color = SolarGreen, strokeWidth = 2.dp)
             } else {
-                TextButton(onClick = { onSave(fullName, countryCode, phoneNumber, password, role) }) {
+                TextButton(onClick = { onSave(fullName, phoneNumber, password, role) }) {
                     Text("Crear usuario")
                 }
             }

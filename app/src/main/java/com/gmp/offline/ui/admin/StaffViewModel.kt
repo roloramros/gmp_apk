@@ -14,10 +14,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// Mismas 4 opciones de código de país que trae <select id="staffCountryCode">
-// en la web legada, mismo orden y mismo default (+53, primera opción).
-val STAFF_COUNTRY_CODES = listOf("+53", "+1", "+52", "+34")
-
 // Mismo orden que <select id="staffRole"> en la web (trabajador primero,
 // que es también el valor por defecto del formulario).
 data class RoleOption(val value: String, val label: String)
@@ -55,7 +51,7 @@ class StaffViewModel @Inject constructor(
      * error se lo decimos tal cual al usuario en vez de fingir que quedó
      * encolado, porque acá no hay outbox real cubriendo esta acción.
      */
-    fun createStaff(fullName: String, countryCode: String, phoneNumber: String, password: String, role: String, onSaved: () -> Unit) {
+    fun createStaff(fullName: String, phoneNumber: String, password: String, role: String, onSaved: () -> Unit) {
         val trimmedName = fullName.trim()
         val trimmedPhoneNumber = phoneNumber.trim()
 
@@ -70,7 +66,7 @@ class StaffViewModel @Inject constructor(
             try {
                 staffRepository.createStaff(
                     fullName = trimmedName,
-                    phone = countryCode + trimmedPhoneNumber,
+                    phone = trimmedPhoneNumber,
                     password = password,
                     role = role,
                 )
