@@ -15,6 +15,9 @@ interface JobMaterialDao {
     @Query("SELECT * FROM job_materials WHERE jobUuid = :jobUuid AND materialUuid = :materialUuid LIMIT 1")
     suspend fun findByJobAndMaterial(jobUuid: String, materialUuid: String): JobMaterialEntity?
 
+    @Query("SELECT * FROM job_materials WHERE jobUuid = :jobUuid AND materialUuid IS NULL AND freeTextDescription = :description LIMIT 1")
+    suspend fun findByJobAndFreeText(jobUuid: String, description: String): JobMaterialEntity?
+
     @Upsert
     suspend fun upsertAll(items: List<JobMaterialEntity>)
 
