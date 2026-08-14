@@ -62,8 +62,6 @@ class WorkerJobRepository @Inject constructor(
             jobMaterialDao.upsertAll(
                 listOf(existing.copy(quantity = formatQuantity(current + delta), updatedAt = now)),
             )
-
-            // El backend consolida por job + material_uuid y suma este delta.
             commandQueue.enqueue(
                 endpointPath = "/jobs/$jobUuid/materials",
                 httpMethod = "POST",
@@ -105,6 +103,66 @@ class WorkerJobRepository @Inject constructor(
             ),
         )
     }
+
+    suspend fun addCustomMaterial(jobUuid: String, name: String, unit: String, quantityToAdd: String) {
+        val cleanName = name.trim()
+        val cleanUnit = unit.trim()
+        val delta = quantityToAdd.toDoubleOrNull() ?: return
+        if (cleanName.isBlank() || cleanUnit.isBlank() || delta <= 0.0) return
+
+        val encodedDescription = encodeCustomDescription(cleanName, cleanUnit)
+        val existing = jobMaterialDao.findByJobAndFreeText(jobUuid, encodedDescription)
+        val now = isoNowUtc()
+
+        if (existing != null) {
+            val current = existing.quantity.toDoubleOrNull() ?: 0.0
+            jobMaterialDao.upsertAll(
+                listOf(existing.copy(quantity = formatQuantity(current + delta), updatedAt = now)),
+            )
+            commandQueue.enqueue(
+                endpointPath = "/jobs/$jobUuid/materials",
+                httpMethod = "POST",
+                payload = mapOf(
+                    "uuid" to existing.uuid,
+                    "material_uuid" to null,
+                    "free_text_description" to encodedDescription,
+                    "quantity" to formatQuantity(delta),
+                    "unit_price" to null,
+                ),
+            )
+            return
+        }
+
+        val itemUuid = UUID.randomUUID().toString()
+        jobMaterialDao.upsertAll(
+            listOf(
+                JobMaterialEntity(
+                    uuid = itemUuid,
+                    jobUuid = jobUuid,
+                    materialUuid = null,
+                    freeTextDescription = encodedDescription,
+                    quantity = formatQuantity(delta),
+                    unitPrice = null,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            ),
+        )
+        commandQueue.enqueue(
+            endpointPath = "/jobs/$jobUuid/materials",
+            httpMethod = "POST",
+            payload = mapOf(
+                "uuid" to itemUuid,
+                "material_uuid" to null,
+                "free_text_description" to encodedDescription,
+                "quantity" to formatQuantity(delta),
+                "unit_price" to null,
+            ),
+        )
+    }
+
+    private fun encodeCustomDescription(name: String, unit: String): String =
+        "$name|||unit:$unit"
 
     private fun formatQuantity(value: Double): String =
         if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
