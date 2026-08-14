@@ -87,9 +87,17 @@ class JobDetailViewModel @Inject constructor(
         .map { items -> items.sortedBy { it.name.lowercase() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val photos: StateFlow<List<JobPhotoEntity>> = jobDetailRepository.observePhotos(jobUuid)
-        .map { items -> items.sortedBy { it.createdAt } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val photos: StateFlow<List<JobPhotoEntity>> = combine(
+        jobDetailRepository.observePhotos(jobUuid),
+        staff,
+    ) { items, people ->
+        val rolesByUuid = people.associate { it.uuid to it.role }
+        items.sortedWith(
+            compareBy<JobPhotoEntity> {
+                if (rolesByUuid[it.uploadedByUuid] == "admin" || rolesByUuid[it.uploadedByUuid] == "comercial") 0 else 1
+            }.thenBy { it.createdAt },
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val photo: StateFlow<JobPhotoEntity?> = photos
         .combine(job) { items, _ -> items.firstOrNull() }
