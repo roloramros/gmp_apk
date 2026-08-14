@@ -1,6 +1,5 @@
 package com.gmp.offline.ui.admin
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,7 +23,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,8 +45,8 @@ import com.gmp.offline.ui.theme.SolarGreenDark
 // una ViewModel/composable propios o extender los existentes con un flag
 // de rol — no se anticipa esa decisión ahora.
 //
-// Las pestañas "Gestión de Personal" y "Gestión de Materiales" son
-// placeholders: se completan en los próximos pasos de Fase 6.
+// Las 3 pestañas ya tienen contenido real: Montajes (Paso 5), Materiales
+// (Paso 6) y Personal (Paso 7, este commit).
 private enum class AdminTab(val label: String) {
     MONTAJES("Montajes"),
     PERSONAL("Personal"),
@@ -140,23 +138,9 @@ fun AdminHomeScreen(
                     onClear = { jobsViewModel.clearStatusFilters() },
                     onOpenJob = onOpenJob,
                 )
-                AdminTab.PERSONAL -> AdminTabPlaceholder("Gestión de Personal")
+                AdminTab.PERSONAL -> StaffTabContent()
                 AdminTab.MATERIALES -> MaterialsTabContent()
             }
         }
-    }
-}
-
-@Composable
-private fun AdminTabPlaceholder(label: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            "$label — próximamente",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }

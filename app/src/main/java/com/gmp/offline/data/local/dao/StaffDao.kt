@@ -15,6 +15,9 @@ interface StaffDao {
     @Query("SELECT * FROM staff WHERE uuid = :uuid")
     fun observeByUuid(uuid: String): Flow<StaffEntity?>
 
+    @Query("SELECT * FROM staff WHERE uuid = :uuid")
+    suspend fun getByUuid(uuid: String): StaffEntity?
+
     @Upsert
     suspend fun upsertAll(items: List<StaffEntity>)
 
