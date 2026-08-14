@@ -103,6 +103,9 @@ fun WorkerJobDetailScreen(
 
                     if (showMore) {
                         DetailRow("Teléfono", currentJob.clientPhone)
+                        DetailRow("Referencia", currentJob.reference)
+                        DetailRow("Notas del sitio", currentJob.siteNotes)
+                        DetailRow("Descripción del trabajo", currentJob.description)
                         DetailRow("Fecha oficial del montaje", currentJob.scheduledAt?.take(10))
                         DetailRow(
                             "Trabajadores asignados",
