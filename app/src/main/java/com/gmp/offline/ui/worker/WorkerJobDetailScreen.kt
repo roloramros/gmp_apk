@@ -200,6 +200,7 @@ fun WorkerJobDetailScreen(
                 onAddPhoto = viewModel::addWorkerPhoto,
                 onRetryPhoto = viewModel::retryWorkerPhoto,
                 onDismissError = viewModel::clearWorkerPhotoError,
+                canAddPhoto = currentJob.status == "in_progress",
             )
 
             if (currentJob.status == "in_progress") {
