@@ -120,20 +120,13 @@ class JobDetailViewModel @Inject constructor(
     }
 
     /**
-     * Asigna o quita a un trabajador/admin del montaje. Se aplica al toque
-     * del checkbox en la UI (sin botón "Guardar" aparte), siguiendo el
-     * mismo criterio de "sync inmediato" ya usado en el resto de la app.
+     * Confirma en un solo paso los cambios pendientes de la card de
+     * asignación (checkboxes + fecha) — la UI llama a esto solo cuando se
+     * toca "Confirmar asignación", no en cada tap individual.
      */
-    fun toggleWorker(workerUuid: String, assign: Boolean) {
+    fun confirmAssignment(scheduledDate: String?, selectedWorkerUuids: Set<String>) {
         viewModelScope.launch {
-            jobDetailRepository.toggleWorkerAssignment(jobUuid, workerUuid, assign)
-        }
-    }
-
-    /** Fija la fecha oficial confirmada del montaje ("yyyy-MM-dd" o null). */
-    fun setScheduledDate(isoDate: String?) {
-        viewModelScope.launch {
-            jobDetailRepository.setScheduledDate(jobUuid, isoDate)
+            jobDetailRepository.confirmAssignment(jobUuid, scheduledDate, selectedWorkerUuids)
         }
     }
 }

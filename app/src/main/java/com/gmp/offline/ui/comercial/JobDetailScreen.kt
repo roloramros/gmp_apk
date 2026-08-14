@@ -218,10 +218,9 @@ fun JobDetailScreen(
             if (viewModel.isAdmin) {
                 AssignmentCard(
                     scheduledDate = currentJob.scheduledAt?.take(10),
-                    onScheduledDateChange = { viewModel.setScheduledDate(it) },
-                    assignableStaff = assignableStaff,
                     assignedWorkerUuids = workers.map { it.userUuid }.toSet(),
-                    onToggleWorker = { workerUuid, assign -> viewModel.toggleWorker(workerUuid, assign) },
+                    assignableStaff = assignableStaff,
+                    onConfirm = { date, selected -> viewModel.confirmAssignment(date, selected) },
                 )
             }
 
@@ -271,22 +270,29 @@ fun JobDetailScreen(
  * Card de "Asignación de personal y fecha de montaje" — solo admin (ver
  * jobsActionsController.js: `/assign`, `/unassign` son `solo admin`).
  *
- * Muestra el personal asignable (rol admin o trabajador, nunca comercial)
- * con un checkbox por persona: tocarlo asigna/quita al toque, sin un botón
- * "Guardar" aparte, igual que el resto de las acciones offline-first de la
- * app (optimista en Room + outbox inmediato). No valida solapes de horario
- * a propósito: un mismo trabajador puede quedar asignado a más de un
- * montaje el mismo día.
+ * Los checkboxes y la fecha editan un borrador local (no se mandan al
+ * tocarlos); recién se aplican todos juntos al tocar "Confirmar
+ * asignación" (JobDetailViewModel.confirmAssignment), que diferencia contra
+ * lo ya asignado y manda solo los cambios reales. No valida solapes de
+ * horario a propósito: un mismo trabajador puede quedar asignado a más de
+ * un montaje el mismo día.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AssignmentCard(
     scheduledDate: String?,
-    onScheduledDateChange: (String?) -> Unit,
-    assignableStaff: List<StaffEntity>,
     assignedWorkerUuids: Set<String>,
-    onToggleWorker: (String, Boolean) -> Unit,
+    assignableStaff: List<StaffEntity>,
+    onConfirm: (scheduledDate: String?, selectedWorkerUuids: Set<String>) -> Unit,
 ) {
+    // Borrador local: se re-seedea desde el estado real solo cuando cambia
+    // (por ejemplo, tras confirmar y que /sync devuelva la confirmación),
+    // no en cada recomposición.
+    var dateDraft by remember(scheduledDate) { mutableStateOf(scheduledDate.orEmpty()) }
+    var selectedDraft by remember(assignedWorkerUuids) { mutableStateOf(assignedWorkerUuids) }
+
+    val hasChanges = dateDraft != scheduledDate.orEmpty() || selectedDraft != assignedWorkerUuids
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -303,8 +309,8 @@ private fun AssignmentCard(
             Spacer(Modifier.height(12.dp))
 
             AssignmentDateField(
-                value = scheduledDate.orEmpty(),
-                onValueChange = { onScheduledDateChange(it.ifBlank { null }) },
+                value = dateDraft,
+                onValueChange = { dateDraft = it },
                 label = "Fecha oficial del montaje",
             )
 
@@ -326,18 +332,26 @@ private fun AssignmentCard(
             } else {
                 Column {
                     assignableStaff.forEach { person ->
-                        val isAssigned = person.uuid in assignedWorkerUuids
+                        val isSelected = person.uuid in selectedDraft
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .clickable { onToggleWorker(person.uuid, !isAssigned) }
+                                .clickable {
+                                    selectedDraft = if (isSelected) {
+                                        selectedDraft - person.uuid
+                                    } else {
+                                        selectedDraft + person.uuid
+                                    }
+                                }
                                 .padding(vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Checkbox(
-                                checked = isAssigned,
-                                onCheckedChange = { checked -> onToggleWorker(person.uuid, checked) },
+                                checked = isSelected,
+                                onCheckedChange = { checked ->
+                                    selectedDraft = if (checked) selectedDraft + person.uuid else selectedDraft - person.uuid
+                                },
                                 colors = CheckboxDefaults.colors(checkedColor = SolarGreen),
                             )
                             Column(modifier = Modifier.weight(1f)) {
@@ -351,6 +365,17 @@ private fun AssignmentCard(
                         }
                     }
                 }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = { onConfirm(dateDraft.ifBlank { null }, selectedDraft) },
+                enabled = hasChanges,
+                colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Confirmar asignación")
             }
         }
     }

@@ -72,75 +72,78 @@ class JobDetailRepository @Inject constructor(
         jobWorkerDao.observeByJob(jobUuid)
 
     /**
-     * Asigna o quita a un trabajador/admin del montaje (`solo admin` según
-     * jobsActionsController.js — la UI ya lo restringe con
-     * JobDetailViewModel.isAdmin antes de mostrar esta acción).
+     * Confirma de una sola vez la asignación de personal + fecha oficial
+     * del montaje (card "Asignación de personal y fecha", solo admin según
+     * jobsActionsController.js). Se dispara con el botón "Confirmar
+     * asignación" de la UI, no al tocar cada checkbox — así varios cambios
+     * de personal se mandan juntos en vez de un comando por tap.
      *
      * No valida solapes de horario a propósito: un mismo trabajador puede
      * quedar asignado a más de un montaje el mismo día (pedido explícito).
      *
-     * Igual que el resto de las acciones de estado (ver JobsRepository),
-     * aplica el cambio optimista en Room primero y encola el comando real
-     * después. Cuando se asigna el primer trabajador y el job estaba en
-     * "pending", el servidor lo pasa automáticamente a "assigned" (ver
-     * avance_fase_3.md, sección 4.2) — se replica ese mismo efecto acá para
-     * que la UI no tenga que esperar el próximo /sync.
+     * Mismo patrón optimista + outbox de siempre: aplica todo en Room ya
+     * mismo y encola un comando por cada cambio real (assign/unassign por
+     * trabajador agregado/quitado, PATCH para la fecha). Cuando se agrega
+     * al menos un trabajador y el job estaba en "pending", replica acá el
+     * mismo efecto que ya hace el servidor (pasar a "assigned") para que la
+     * UI no tenga que esperar el próximo /sync.
      */
-    suspend fun toggleWorkerAssignment(jobUuid: String, workerUuid: String, assign: Boolean) {
+    suspend fun confirmAssignment(jobUuid: String, scheduledIsoDate: String?, selectedWorkerUuids: Set<String>) {
         val nowIso = isoNowUtc()
-        if (assign) {
-            if (jobWorkerDao.findByJobAndUser(jobUuid, workerUuid) != null) return
+        val currentWorkers = jobWorkerDao.getByJob(jobUuid)
+        val currentUuids = currentWorkers.map { it.userUuid }.toSet()
+
+        val toAdd = selectedWorkerUuids - currentUuids
+        val toRemove = currentUuids - selectedWorkerUuids
+
+        if (toAdd.isNotEmpty()) {
             jobWorkerDao.upsertAll(
-                listOf(
+                toAdd.map { workerUuid ->
                     JobWorkerEntity(
                         uuid = UUID.randomUUID().toString(),
                         jobUuid = jobUuid,
                         userUuid = workerUuid,
                         createdAt = nowIso,
                         updatedAt = nowIso,
-                    ),
-                ),
+                    )
+                },
             )
-
-            val job = jobDao.getByUuid(jobUuid)
-            if (job != null && job.status == "pending") {
-                jobDao.upsertAll(listOf(job.copy(status = "assigned", updatedAt = nowIso)))
+            for (workerUuid in toAdd) {
+                commandQueue.enqueue(
+                    endpointPath = "/jobs/$jobUuid/assign",
+                    httpMethod = "POST",
+                    payload = mapOf("user_uuid" to workerUuid),
+                )
             }
+        }
 
-            commandQueue.enqueue(
-                endpointPath = "/jobs/$jobUuid/assign",
-                httpMethod = "POST",
-                payload = mapOf("user_uuid" to workerUuid),
-            )
-        } else {
-            val existing = jobWorkerDao.findByJobAndUser(jobUuid, workerUuid) ?: return
-            jobWorkerDao.deleteByUuids(listOf(existing.uuid))
+        if (toRemove.isNotEmpty()) {
+            val rowsToRemove = currentWorkers.filter { it.userUuid in toRemove }.map { it.uuid }
+            jobWorkerDao.deleteByUuids(rowsToRemove)
+            for (workerUuid in toRemove) {
+                commandQueue.enqueue(
+                    endpointPath = "/jobs/$jobUuid/unassign",
+                    httpMethod = "POST",
+                    payload = mapOf("user_uuid" to workerUuid),
+                )
+            }
+        }
 
+        val scheduledAt = scheduledIsoDate?.let { "${it}T00:00:00.000Z" }
+        val job = jobDao.getByUuid(jobUuid)
+        val dateChanged = job != null && job.scheduledAt != scheduledAt
+        if (job != null) {
+            val newStatus = if (toAdd.isNotEmpty() && job.status == "pending") "assigned" else job.status
+            jobDao.upsertAll(listOf(job.copy(scheduledAt = scheduledAt, status = newStatus, updatedAt = nowIso)))
+        }
+
+        if (dateChanged) {
             commandQueue.enqueue(
-                endpointPath = "/jobs/$jobUuid/unassign",
-                httpMethod = "POST",
-                payload = mapOf("user_uuid" to workerUuid),
+                endpointPath = "/jobs/$jobUuid",
+                httpMethod = "PATCH",
+                payload = mapOf("scheduled_at" to scheduledAt),
             )
         }
-    }
-
-    /**
-     * Fija la fecha oficial confirmada del montaje (`jobs.scheduled_at`,
-     * distinta de `visit_date`/`proposed_date`). Mismo patrón optimista +
-     * outbox de siempre, contra `PATCH /jobs/:uuid`.
-     */
-    suspend fun setScheduledDate(jobUuid: String, isoDate: String?) {
-        val job = jobDao.getByUuid(jobUuid) ?: return
-        val scheduledAt = isoDate?.let { "${it}T00:00:00.000Z" }
-        val nowIso = isoNowUtc()
-
-        jobDao.upsertAll(listOf(job.copy(scheduledAt = scheduledAt, updatedAt = nowIso)))
-
-        commandQueue.enqueue(
-            endpointPath = "/jobs/$jobUuid",
-            httpMethod = "PATCH",
-            payload = mapOf("scheduled_at" to scheduledAt),
-        )
     }
 
     fun observeMaterials(jobUuid: String): Flow<List<JobMaterialEntity>> =
