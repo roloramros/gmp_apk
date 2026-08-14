@@ -60,8 +60,17 @@ class ComercialJobsListViewModel @Inject constructor(
                 ComercialJobRow(
                     job = job,
                     clientName = job.clientName ?: job.clientUuid?.let { staffByUuid[it]?.fullName },
-                    pendingSync = pending.any {
-                        it.status == "pending" && it.endpointPath.contains(job.uuid)
+                    pendingSync = pending.any { operation ->
+                        if (operation.status != "pending") return@any false
+
+                        // La mayoría de operaciones de un job llevan su UUID en la URL
+                        // (/jobs/{uuid}/..., PATCH /jobs/{uuid}, etc.). El alta offline es
+                        // la excepción: POST /jobs usa una ruta sin UUID y lo manda en el
+                        // body. En ese caso también debemos asociar la operación a la tarjeta.
+                        operation.endpointPath.contains(job.uuid) ||
+                            (operation.endpointPath == "/jobs" &&
+                                operation.httpMethod == "POST" &&
+                                operation.payloadJson.contains(job.uuid))
                     },
                 )
             }
