@@ -127,6 +127,8 @@ fun JobDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // --- Info del job ("montaje") ---
+            var showFullDetails by remember { mutableStateOf(false) }
+
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -147,35 +149,52 @@ fun JobDetailScreen(
                     DetailRow("CI", currentJob.clientCi)
                     DetailRow("Teléfono", currentJob.clientPhone)
                     DetailRow("Dirección", currentJob.address)
-                    if (currentJob.latitude != null && currentJob.longitude != null) {
-                        DetailRow("Coordenadas", "${currentJob.latitude}, ${currentJob.longitude}")
-                    }
-                    DetailRow("Referencia", currentJob.reference)
-                    DetailRow("Notas del sitio", currentJob.siteNotes)
-                    DetailRow("Descripción del trabajo", currentJob.description)
-                    DetailRow("Precio", currentJob.price?.let { "$$it" })
-                    DetailRow("Forma de pago", currentJob.paymentMethod?.let { pm -> PAYMENT_METHODS.find { it.value == pm }?.label ?: pm })
-                    DetailRow("Fecha de visita", currentJob.visitDate)
-                    DetailRow("Fecha propuesta", currentJob.proposedDate)
-                    DetailRow("Fecha de montaje (oficial)", currentJob.scheduledAt?.take(10))
 
-                    if (workers.isNotEmpty()) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            "Trabajadores asignados: ${workers.size}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    if (showFullDetails) {
+                        if (currentJob.latitude != null && currentJob.longitude != null) {
+                            DetailRow("Coordenadas", "${currentJob.latitude}, ${currentJob.longitude}")
+                        }
+                        DetailRow("Referencia", currentJob.reference)
+                        DetailRow("Notas del sitio", currentJob.siteNotes)
+                        DetailRow("Descripción del trabajo", currentJob.description)
+                        DetailRow("Precio", currentJob.price?.let { "$$it" })
+                        DetailRow("Forma de pago", currentJob.paymentMethod?.let { pm -> PAYMENT_METHODS.find { it.value == pm }?.label ?: pm })
+                        DetailRow("Fecha de visita", currentJob.visitDate)
+                        DetailRow("Fecha propuesta", currentJob.proposedDate)
+                        DetailRow("Fecha de montaje (oficial)", currentJob.scheduledAt?.take(10))
+
+                        if (workers.isNotEmpty()) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                "Trabajadores asignados: ${workers.size}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        val canCancel = currentJob.status == "pending" || currentJob.status == "assigned"
+                        if (canCancel) {
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = { showCancelConfirm = true },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = SolarError),
+                            ) {
+                                Text("Cancelar montaje")
+                            }
+                        }
                     }
 
-                    val canCancel = currentJob.status == "pending" || currentJob.status == "assigned"
-                    if (canCancel) {
-                        Spacer(Modifier.height(12.dp))
-                        OutlinedButton(
-                            onClick = { showCancelConfirm = true },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SolarError),
-                        ) {
-                            Text("Cancelar montaje")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(onClick = { showFullDetails = !showFullDetails }) {
+                            Text(
+                                if (showFullDetails) "Mostrar menos" else "Mostrar más",
+                                color = SolarGreen,
+                            )
                         }
                     }
                 }
