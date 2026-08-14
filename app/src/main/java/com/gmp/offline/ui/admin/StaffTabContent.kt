@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.PersonRemove
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -191,7 +191,7 @@ private fun StaffRow(member: StaffEntity, onDeactivate: () -> Unit) {
             // desactivar a sí mismo ni a otro admin desde esta pantalla.
             if (member.role != "admin") {
                 IconButton(onClick = onDeactivate) {
-                    Icon(Icons.Filled.PersonRemove, contentDescription = "Eliminar", tint = SolarError)
+                    Icon(Icons.Filled.Delete, contentDescription = "Eliminar", tint = SolarError)
                 }
             }
         }
