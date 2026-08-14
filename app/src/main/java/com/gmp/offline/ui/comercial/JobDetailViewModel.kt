@@ -46,6 +46,10 @@ class JobDetailViewModel @Inject constructor(
     }
 
     val isAdmin: Boolean = sessionManager.role == "admin"
+    val isWorker: Boolean = sessionManager.role == "trabajador"
+    val canEditJob: Boolean = sessionManager.role == "admin" || sessionManager.role == "comercial"
+    val canCancelJob: Boolean = canEditJob
+    val canManagePhoto: Boolean = !isWorker
 
     val job: StateFlow<JobEntity?> = jobsRepository.observeJob(jobUuid)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -72,6 +76,7 @@ class JobDetailViewModel @Inject constructor(
     val photoState: StateFlow<PhotoUiState> = _photoState.asStateFlow()
 
     fun addPhoto(imageUri: Uri) {
+        if (!canManagePhoto) return
         viewModelScope.launch {
             _photoState.value = PhotoUiState.Uploading
             when (val result = jobDetailRepository.addPhoto(jobUuid, imageUri)) {
@@ -82,6 +87,7 @@ class JobDetailViewModel @Inject constructor(
     }
 
     fun retryPhotoUpload() {
+        if (!canManagePhoto) return
         viewModelScope.launch {
             _photoState.value = PhotoUiState.Uploading
             when (val result = jobDetailRepository.retryPhotoUpload(jobUuid)) {
@@ -92,6 +98,7 @@ class JobDetailViewModel @Inject constructor(
     }
 
     fun removePhoto() {
+        if (!canManagePhoto) return
         viewModelScope.launch { jobDetailRepository.removePhoto(jobUuid) }
     }
 
@@ -100,10 +107,12 @@ class JobDetailViewModel @Inject constructor(
     }
 
     fun cancelJob() {
+        if (!canCancelJob) return
         viewModelScope.launch { jobsRepository.cancelJob(jobUuid) }
     }
 
     fun confirmAssignment(scheduledDate: String?, selectedWorkerUuids: Set<String>) {
+        if (!isAdmin) return
         viewModelScope.launch {
             assignmentRepository.confirmAssignment(jobUuid, scheduledDate, selectedWorkerUuids)
         }
