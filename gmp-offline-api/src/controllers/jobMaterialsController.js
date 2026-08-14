@@ -10,15 +10,12 @@
 const pool = require('../db/pool');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Estados a partir de los cuales ya no se pueden agregar/quitar materiales.
 const BLOCKED_STATUSES = ['cancelled', 'invoiced', 'partially_paid', 'paid'];
 
 function isValidUuid(v) {
   return typeof v === 'string' && UUID_RE.test(v);
 }
 
-// Busca el job por uuid+company, sin lock (no cambia jobs.status en este flujo).
 async function findJob(companyId, jobUuid) {
   const result = await pool.query(
     `SELECT id, status FROM jobs WHERE uuid = $1 AND company_id = $2 AND deleted_at IS NULL`,
@@ -27,7 +24,6 @@ async function findJob(companyId, jobUuid) {
   return result.rows[0] || null;
 }
 
-// Si el usuario es trabajador, confirma que está asignado (activo) al job.
 async function isAssignedWorker(jobId, user) {
   if (user.role !== 'trabajador') return true;
   const result = await pool.query(
@@ -37,7 +33,6 @@ async function isAssignedWorker(jobId, user) {
   return result.rows.length > 0;
 }
 
-// Resuelve material_uuid -> { id, default_price } de materials (catálogo, misma empresa).
 async function resolveMaterial(materialUuid, companyId) {
   const result = await pool.query(
     `SELECT id, default_price FROM materials WHERE uuid = $1 AND company_id = $2 AND deleted_at IS NULL`,
@@ -46,7 +41,6 @@ async function resolveMaterial(materialUuid, companyId) {
   return result.rows[0] || null;
 }
 
-// Devuelve el job_material recién creado/existente con datos del material unido, si aplica.
 async function getFullJobMaterial(jobMaterialUuid) {
   const result = await pool.query(
     `SELECT jm.uuid, jm.quantity, jm.unit_price, jm.free_text_description,
@@ -60,10 +54,6 @@ async function getFullJobMaterial(jobMaterialUuid) {
   return result.rows[0] || null;
 }
 
-// ---------------------------------------------------------------------------
-// POST /jobs/:uuid/materials
-// body: { uuid, material_uuid?, free_text_description?, quantity, unit_price?, created_by_device_id? }
-// ---------------------------------------------------------------------------
 async function addMaterial(req, res) {
   const { uuid: jobUuid } = req.params;
   const { uuid, material_uuid, free_text_description, quantity, unit_price, created_by_device_id } = req.body || {};
@@ -74,7 +64,6 @@ async function addMaterial(req, res) {
   const hasMaterialRef = !!material_uuid;
   const hasFreeText = !!(free_text_description && free_text_description.trim());
   if (hasMaterialRef === hasFreeText) {
-    // ambos presentes, o ninguno
     return res.status(400).json({
       error_code: 'invalid_material_reference',
       message: 'Debe enviarse exactamente uno de: material_uuid (catálogo) o free_text_description (texto libre).',
@@ -113,8 +102,26 @@ async function addMaterial(req, res) {
         return res.status(400).json({ error_code: 'material_not_found', message: 'No se encontró ese material en el catálogo de la empresa.' });
       }
       materialId = material.id;
-      if (resolvedUnitPrice === null) {
-        resolvedUnitPrice = material.default_price;
+      if (resolvedUnitPrice === null) resolvedUnitPrice = material.default_price;
+
+      // Un mismo material de catálogo ocupa una sola línea por job.
+      // Si ya existe, este POST representa un incremento de cantidad.
+      const existing = await pool.query(
+        `SELECT uuid FROM job_materials
+         WHERE job_id = $1 AND material_id = $2 AND company_id = $3 AND deleted_at IS NULL
+         LIMIT 1`,
+        [job.id, materialId, req.user.company_id]
+      );
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE job_materials
+           SET quantity = quantity + $1,
+               unit_price = COALESCE($2, unit_price),
+               updated_at = now()
+           WHERE uuid = $3`,
+          [qty, resolvedUnitPrice, existing.rows[0].uuid]
+        );
+        return res.status(200).json(await getFullJobMaterial(existing.rows[0].uuid));
       }
     }
 
@@ -135,8 +142,7 @@ async function addMaterial(req, res) {
       ]
     );
 
-    const fullRow = await getFullJobMaterial(insertResult.rows[0].uuid);
-    return res.status(201).json(fullRow);
+    return res.status(201).json(await getFullJobMaterial(insertResult.rows[0].uuid));
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ error_code: 'uuid_conflict', message: 'Ya existe un job_material con ese uuid.' });
@@ -146,11 +152,6 @@ async function addMaterial(req, res) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// DELETE /jobs/:uuid/materials/:material_uuid  (soft delete)
-// Nota: :material_uuid es el uuid del registro job_materials (la línea de uso),
-// no el uuid del material de catálogo.
-// ---------------------------------------------------------------------------
 async function removeMaterial(req, res) {
   const { uuid: jobUuid, material_uuid: jobMaterialUuid } = req.params;
 
