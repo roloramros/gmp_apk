@@ -104,8 +104,6 @@ async function addMaterial(req, res) {
       materialId = material.id;
       if (resolvedUnitPrice === null) resolvedUnitPrice = material.default_price;
 
-      // Un mismo material de catálogo ocupa una sola línea por job.
-      // Si ya existe, este POST representa un incremento de cantidad.
       const existing = await pool.query(
         `SELECT uuid FROM job_materials
          WHERE job_id = $1 AND material_id = $2 AND company_id = $3 AND deleted_at IS NULL
@@ -120,6 +118,28 @@ async function addMaterial(req, res) {
                updated_at = now()
            WHERE uuid = $3`,
           [qty, resolvedUnitPrice, existing.rows[0].uuid]
+        );
+        return res.status(200).json(await getFullJobMaterial(existing.rows[0].uuid));
+      }
+    } else {
+      const cleanDescription = free_text_description.trim();
+      const existing = await pool.query(
+        `SELECT uuid FROM job_materials
+         WHERE job_id = $1
+           AND material_id IS NULL
+           AND free_text_description = $2
+           AND company_id = $3
+           AND deleted_at IS NULL
+         LIMIT 1`,
+        [job.id, cleanDescription, req.user.company_id]
+      );
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE job_materials
+           SET quantity = quantity + $1,
+               updated_at = now()
+           WHERE uuid = $2`,
+          [qty, existing.rows[0].uuid]
         );
         return res.status(200).json(await getFullJobMaterial(existing.rows[0].uuid));
       }
