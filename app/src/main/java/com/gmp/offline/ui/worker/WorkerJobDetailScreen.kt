@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gmp.offline.ui.comercial.JobDetailViewModel
-import com.gmp.offline.ui.comercial.PAYMENT_METHODS
 import com.gmp.offline.ui.common.jobStatusColor
 import com.gmp.offline.ui.common.jobStatusLabel
 import com.gmp.offline.ui.theme.SolarGreen
@@ -101,30 +100,14 @@ fun WorkerJobDetailScreen(
 
                     DetailRow("Cliente", currentJob.clientName ?: clientName)
                     DetailRow("Dirección", currentJob.address)
-                    DetailRow("Teléfono", currentJob.clientPhone)
-                    DetailRow(
-                        "Trabajadores asignados",
-                        assignedWorkerNames.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "—",
-                    )
 
                     if (showMore) {
-                        DetailRow("CI", currentJob.clientCi)
-                        if (currentJob.latitude != null && currentJob.longitude != null) {
-                            DetailRow("Coordenadas", "${currentJob.latitude}, ${currentJob.longitude}")
-                        }
-                        DetailRow("Referencia", currentJob.reference)
-                        DetailRow("Notas del sitio", currentJob.siteNotes)
-                        DetailRow("Descripción del trabajo", currentJob.description)
-                        DetailRow("Precio", currentJob.price?.let { "$$it" })
+                        DetailRow("Teléfono", currentJob.clientPhone)
+                        DetailRow("Fecha oficial del montaje", currentJob.scheduledAt?.take(10))
                         DetailRow(
-                            "Forma de pago",
-                            currentJob.paymentMethod?.let { method ->
-                                PAYMENT_METHODS.find { it.value == method }?.label ?: method
-                            },
+                            "Trabajadores asignados",
+                            assignedWorkerNames.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "—",
                         )
-                        DetailRow("Fecha de visita", currentJob.visitDate)
-                        DetailRow("Fecha propuesta", currentJob.proposedDate)
-                        DetailRow("Fecha de montaje (oficial)", currentJob.scheduledAt?.take(10))
                     }
 
                     Row(
