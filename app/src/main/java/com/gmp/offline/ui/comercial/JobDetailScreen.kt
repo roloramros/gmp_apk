@@ -160,11 +160,11 @@ fun JobDetailScreen(
                     }
 
                     DetailRow("Cliente", currentJob.clientName ?: clientName)
-                    DetailRow("CI", currentJob.clientCi)
                     DetailRow("Teléfono", currentJob.clientPhone)
-                    DetailRow("Dirección", currentJob.address)
 
                     if (showFullDetails) {
+                        DetailRow("CI", currentJob.clientCi)
+                        DetailRow("Dirección", currentJob.address)
                         if (currentJob.latitude != null && currentJob.longitude != null) {
                             DetailRow("Coordenadas", "${currentJob.latitude}, ${currentJob.longitude}")
                         }
@@ -290,6 +290,7 @@ private fun AssignmentCard(
     // no en cada recomposición.
     var dateDraft by remember(scheduledDate) { mutableStateOf(scheduledDate.orEmpty()) }
     var selectedDraft by remember(assignedWorkerUuids) { mutableStateOf(assignedWorkerUuids) }
+    var showFullAssignment by remember { mutableStateOf(false) }
 
     val hasChanges = dateDraft != scheduledDate.orEmpty() || selectedDraft != assignedWorkerUuids
 
@@ -314,60 +315,76 @@ private fun AssignmentCard(
                 label = "Fecha oficial del montaje",
             )
 
-            Spacer(Modifier.height(16.dp))
+            if (showFullAssignment) {
+                Spacer(Modifier.height(16.dp))
 
-            Text(
-                "Personal (admin / trabajador)",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            if (assignableStaff.isEmpty()) {
-                Spacer(Modifier.height(8.dp))
                 Text(
-                    "No hay personal disponible para asignar.",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Personal (admin / trabajador)",
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            } else {
-                Column {
-                    assignableStaff.forEach { person ->
-                        val isSelected = person.uuid in selectedDraft
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    selectedDraft = if (isSelected) {
-                                        selectedDraft - person.uuid
-                                    } else {
-                                        selectedDraft + person.uuid
+
+                if (assignableStaff.isEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "No hay personal disponible para asignar.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Column {
+                        assignableStaff.forEach { person ->
+                            val isSelected = person.uuid in selectedDraft
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        selectedDraft = if (isSelected) {
+                                            selectedDraft - person.uuid
+                                        } else {
+                                            selectedDraft + person.uuid
+                                        }
                                     }
-                                }
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                checked = isSelected,
-                                onCheckedChange = { checked ->
-                                    selectedDraft = if (checked) selectedDraft + person.uuid else selectedDraft - person.uuid
-                                },
-                                colors = CheckboxDefaults.colors(checkedColor = SolarGreen),
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(person.fullName, style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    if (person.role == "admin") "Admin" else "Trabajador",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { checked ->
+                                        selectedDraft = if (checked) selectedDraft + person.uuid else selectedDraft - person.uuid
+                                    },
+                                    colors = CheckboxDefaults.colors(checkedColor = SolarGreen),
                                 )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(person.fullName, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        if (person.role == "admin") "Admin" else "Trabajador",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = { showFullAssignment = !showFullAssignment }) {
+                    Text(
+                        if (showFullAssignment) "Mostrar menos" else "Mostrar más",
+                        color = SolarGreen,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
 
             Button(
                 onClick = { onConfirm(dateDraft.ifBlank { null }, selectedDraft) },
