@@ -16,6 +16,7 @@ import com.gmp.offline.data.repository.JobsRepository
 import com.gmp.offline.data.repository.PhotoActionResult
 import com.gmp.offline.data.repository.StaffRepository
 import com.gmp.offline.data.repository.WorkerJobRepository
+import com.gmp.offline.data.repository.WorkerPhotoRepository
 import com.gmp.offline.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +43,7 @@ class JobDetailViewModel @Inject constructor(
     private val assignmentRepository: AssignmentRepository,
     private val staffRepository: StaffRepository,
     private val workerJobRepository: WorkerJobRepository,
+    private val workerPhotoRepository: WorkerPhotoRepository,
     sessionManager: SessionManager,
 ) : ViewModel() {
 
@@ -51,6 +53,7 @@ class JobDetailViewModel @Inject constructor(
 
     val isAdmin: Boolean = sessionManager.role == "admin"
     val isWorker: Boolean = sessionManager.role == "trabajador"
+    val currentUserUuid: String = sessionManager.userUuid.orEmpty()
     val canEditJob: Boolean = sessionManager.role == "admin" || sessionManager.role == "comercial"
     val canCancelJob: Boolean = canEditJob
     val canManagePhoto: Boolean = !isWorker
@@ -84,12 +87,19 @@ class JobDetailViewModel @Inject constructor(
         .map { items -> items.sortedBy { it.name.lowercase() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val photo: StateFlow<JobPhotoEntity?> = jobDetailRepository.observePhotos(jobUuid)
-        .combine(job) { photos, _ -> photos.firstOrNull() }
+    val photos: StateFlow<List<JobPhotoEntity>> = jobDetailRepository.observePhotos(jobUuid)
+        .map { items -> items.sortedBy { it.createdAt } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val photo: StateFlow<JobPhotoEntity?> = photos
+        .combine(job) { items, _ -> items.firstOrNull() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _photoState = MutableStateFlow<PhotoUiState>(PhotoUiState.Idle)
     val photoState: StateFlow<PhotoUiState> = _photoState.asStateFlow()
+
+    private val _workerPhotoState = MutableStateFlow<PhotoUiState>(PhotoUiState.Idle)
+    val workerPhotoState: StateFlow<PhotoUiState> = _workerPhotoState.asStateFlow()
 
     fun startWorkerJob() {
         if (!isWorker) return
@@ -109,6 +119,32 @@ class JobDetailViewModel @Inject constructor(
     fun addWorkerCustomMaterial(name: String, unit: String, quantity: String) {
         if (!isWorker) return
         viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity) }
+    }
+
+    fun addWorkerPhoto(imageUri: Uri) {
+        if (!isWorker) return
+        viewModelScope.launch {
+            _workerPhotoState.value = PhotoUiState.Uploading
+            when (val result = workerPhotoRepository.addPhoto(jobUuid, imageUri)) {
+                is PhotoActionResult.Success -> _workerPhotoState.value = PhotoUiState.Idle
+                is PhotoActionResult.Error -> _workerPhotoState.value = PhotoUiState.Error(result.message)
+            }
+        }
+    }
+
+    fun retryWorkerPhoto(photoUuid: String) {
+        if (!isWorker) return
+        viewModelScope.launch {
+            _workerPhotoState.value = PhotoUiState.Uploading
+            when (val result = workerPhotoRepository.retryPhoto(jobUuid, photoUuid)) {
+                is PhotoActionResult.Success -> _workerPhotoState.value = PhotoUiState.Idle
+                is PhotoActionResult.Error -> _workerPhotoState.value = PhotoUiState.Error(result.message)
+            }
+        }
+    }
+
+    fun clearWorkerPhotoError() {
+        _workerPhotoState.value = PhotoUiState.Idle
     }
 
     fun addPhoto(imageUri: Uri) {
