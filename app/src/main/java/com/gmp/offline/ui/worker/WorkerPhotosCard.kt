@@ -57,6 +57,7 @@ fun WorkerPhotosCard(
     onAddPhoto: (android.net.Uri) -> Unit,
     onRetryPhoto: (String) -> Unit,
     onDismissError: () -> Unit,
+    canAddPhoto: Boolean = true,
 ) {
     var selectedPhoto by remember { mutableStateOf<JobPhotoEntity?>(null) }
     val workerPhotos = photos.filter { it.uploadedByUuid == currentUserUuid }
@@ -90,7 +91,7 @@ fun WorkerPhotosCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (remaining > 0 && photoState !is PhotoUiState.Uploading) {
+                if (canAddPhoto && remaining > 0 && photoState !is PhotoUiState.Uploading) {
                     Button(
                         onClick = { picker.launch("image/*") },
                         colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
