@@ -66,6 +66,8 @@ fun WorkerJobDetailScreen(
     val assignedWorkerNames by viewModel.assignedWorkerNames.collectAsStateWithLifecycle()
     val jobMaterials by viewModel.jobMaterials.collectAsStateWithLifecycle()
     val materialCatalog by viewModel.materialCatalog.collectAsStateWithLifecycle()
+    val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val workerPhotoState by viewModel.workerPhotoState.collectAsStateWithLifecycle()
 
     var showMore by remember { mutableStateOf(false) }
     var showMaterialDialog by remember { mutableStateOf(false) }
@@ -190,6 +192,15 @@ fun WorkerJobDetailScreen(
                     }
                 }
             }
+
+            WorkerPhotosCard(
+                photos = photos,
+                currentUserUuid = viewModel.currentUserUuid,
+                photoState = workerPhotoState,
+                onAddPhoto = viewModel::addWorkerPhoto,
+                onRetryPhoto = viewModel::retryWorkerPhoto,
+                onDismissError = viewModel::clearWorkerPhotoError,
+            )
 
             if (currentJob.status == "in_progress") {
                 Card(
