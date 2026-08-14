@@ -60,7 +60,9 @@ class ComercialJobsListViewModel @Inject constructor(
                 ComercialJobRow(
                     job = job,
                     clientName = job.clientName ?: job.clientUuid?.let { staffByUuid[it]?.fullName },
-                    pendingSync = pending.any { it.endpointPath.contains(job.uuid) },
+                    pendingSync = pending.any {
+                        it.status == "pending" && it.endpointPath.contains(job.uuid)
+                    },
                 )
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
