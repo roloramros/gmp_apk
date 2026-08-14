@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
@@ -29,15 +30,22 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -58,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gmp.offline.BuildConfig
 import com.gmp.offline.data.local.entities.JobPhotoEntity
+import com.gmp.offline.data.local.entities.StaffEntity
 import com.gmp.offline.ui.common.jobStatusColor
 import com.gmp.offline.ui.common.jobStatusLabel
 import com.gmp.offline.ui.theme.SolarAmber
@@ -65,6 +74,10 @@ import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,6 +89,7 @@ fun JobDetailScreen(
     val job by viewModel.job.collectAsStateWithLifecycle()
     val clientName by viewModel.clientName.collectAsStateWithLifecycle()
     val workers by viewModel.workers.collectAsStateWithLifecycle()
+    val assignableStaff by viewModel.assignableStaff.collectAsStateWithLifecycle()
     val photo by viewModel.photo.collectAsStateWithLifecycle()
     val photoState by viewModel.photoState.collectAsStateWithLifecycle()
 
@@ -200,6 +214,17 @@ fun JobDetailScreen(
                 }
             }
 
+            // --- Asignación de personal y fecha oficial (solo admin) ---
+            if (viewModel.isAdmin) {
+                AssignmentCard(
+                    scheduledDate = currentJob.scheduledAt?.take(10),
+                    onScheduledDateChange = { viewModel.setScheduledDate(it) },
+                    assignableStaff = assignableStaff,
+                    assignedWorkerUuids = workers.map { it.userUuid }.toSet(),
+                    onToggleWorker = { workerUuid, assign -> viewModel.toggleWorker(workerUuid, assign) },
+                )
+            }
+
             // --- Foto (una sola por montaje; comercial no ve materiales) ---
             Text("Foto del montaje", style = MaterialTheme.typography.titleMedium)
 
@@ -239,6 +264,168 @@ fun JobDetailScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * Card de "Asignación de personal y fecha de montaje" — solo admin (ver
+ * jobsActionsController.js: `/assign`, `/unassign` son `solo admin`).
+ *
+ * Muestra el personal asignable (rol admin o trabajador, nunca comercial)
+ * con un checkbox por persona: tocarlo asigna/quita al toque, sin un botón
+ * "Guardar" aparte, igual que el resto de las acciones offline-first de la
+ * app (optimista en Room + outbox inmediato). No valida solapes de horario
+ * a propósito: un mismo trabajador puede quedar asignado a más de un
+ * montaje el mismo día.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AssignmentCard(
+    scheduledDate: String?,
+    onScheduledDateChange: (String?) -> Unit,
+    assignableStaff: List<StaffEntity>,
+    assignedWorkerUuids: Set<String>,
+    onToggleWorker: (String, Boolean) -> Unit,
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Asignación de personal y fecha",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            AssignmentDateField(
+                value = scheduledDate.orEmpty(),
+                onValueChange = { onScheduledDateChange(it.ifBlank { null }) },
+                label = "Fecha oficial del montaje",
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                "Personal (admin / trabajador)",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            if (assignableStaff.isEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "No hay personal disponible para asignar.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Column {
+                    assignableStaff.forEach { person ->
+                        val isAssigned = person.uuid in assignedWorkerUuids
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onToggleWorker(person.uuid, !isAssigned) }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = isAssigned,
+                                onCheckedChange = { checked -> onToggleWorker(person.uuid, checked) },
+                                colors = CheckboxDefaults.colors(checkedColor = SolarGreen),
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(person.fullName, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    if (person.role == "admin") "Admin" else "Trabajador",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AssignmentDateField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = null, tint = SolarGreen) },
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = SolarGreen,
+                unfocusedBorderColor = SolarGreen.copy(alpha = 0.35f),
+                focusedLabelColor = SolarGreen,
+                cursorColor = SolarGreen,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { showDialog = true },
+        )
+    }
+
+    if (showDialog) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = isoAssignDateToUtcMillis(value) ?: System.currentTimeMillis(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        onValueChange(utcMillisToAssignIsoDate(millis))
+                    }
+                    showDialog = false
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("Cancelar")
+                }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+}
+
+private fun utcAssignDateFormat(): SimpleDateFormat =
+    SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+
+private fun utcMillisToAssignIsoDate(millis: Long): String = utcAssignDateFormat().format(Date(millis))
+
+private fun isoAssignDateToUtcMillis(isoDate: String): Long? {
+    if (isoDate.isBlank()) return null
+    return try {
+        utcAssignDateFormat().parse(isoDate)?.time
+    } catch (e: Exception) {
+        null
     }
 }
 

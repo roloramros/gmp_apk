@@ -15,6 +15,12 @@ interface JobWorkerDao {
     @Query("SELECT * FROM job_workers WHERE jobUuid = :jobUuid")
     fun observeByJob(jobUuid: String): Flow<List<JobWorkerEntity>>
 
+    // Lectura puntual (no-Flow), usada para decidir si un trabajador ya
+    // está asignado antes de encolar assign/unassign (ver
+    // JobDetailRepository.toggleWorkerAssignment).
+    @Query("SELECT * FROM job_workers WHERE jobUuid = :jobUuid AND userUuid = :userUuid LIMIT 1")
+    suspend fun findByJobAndUser(jobUuid: String, userUuid: String): JobWorkerEntity?
+
     @Upsert
     suspend fun upsertAll(items: List<JobWorkerEntity>)
 

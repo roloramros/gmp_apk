@@ -12,12 +12,14 @@ import com.gmp.offline.data.repository.JobDetailRepository
 import com.gmp.offline.data.repository.JobsRepository
 import com.gmp.offline.data.repository.PhotoActionResult
 import com.gmp.offline.data.repository.StaffRepository
+import com.gmp.offline.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -33,12 +35,18 @@ class JobDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val jobsRepository: JobsRepository,
     private val jobDetailRepository: JobDetailRepository,
-    staffRepository: StaffRepository,
+    private val staffRepository: StaffRepository,
+    sessionManager: SessionManager,
 ) : ViewModel() {
 
     private val jobUuid: String = requireNotNull(savedStateHandle["jobUuid"]) {
         "JobDetailViewModel requiere jobUuid en la ruta"
     }
+
+    // La asignación de personal/fecha es "solo admin" según
+    // jobsActionsController.js — comercial no ve esa card, aunque reuse
+    // esta misma pantalla de detalle.
+    val isAdmin: Boolean = sessionManager.role == "admin"
 
     val job: StateFlow<JobEntity?> = jobsRepository.observeJob(jobUuid)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -47,6 +55,12 @@ class JobDetailViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val staff: StateFlow<List<StaffEntity>> = staffRepository.observeStaff()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Personal asignable al montaje: admin o trabajador, nunca comercial
+    // (pedido explícito), y solo activos.
+    val assignableStaff: StateFlow<List<StaffEntity>> = staff
+        .map { list -> list.filter { it.active && (it.role == "admin" || it.role == "trabajador") } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val clientName: StateFlow<String?> = combine(job, staff) { j, s ->
@@ -102,6 +116,24 @@ class JobDetailViewModel @Inject constructor(
     fun cancelJob() {
         viewModelScope.launch {
             jobsRepository.cancelJob(jobUuid)
+        }
+    }
+
+    /**
+     * Asigna o quita a un trabajador/admin del montaje. Se aplica al toque
+     * del checkbox en la UI (sin botón "Guardar" aparte), siguiendo el
+     * mismo criterio de "sync inmediato" ya usado en el resto de la app.
+     */
+    fun toggleWorker(workerUuid: String, assign: Boolean) {
+        viewModelScope.launch {
+            jobDetailRepository.toggleWorkerAssignment(jobUuid, workerUuid, assign)
+        }
+    }
+
+    /** Fija la fecha oficial confirmada del montaje ("yyyy-MM-dd" o null). */
+    fun setScheduledDate(isoDate: String?) {
+        viewModelScope.launch {
+            jobDetailRepository.setScheduledDate(jobUuid, isoDate)
         }
     }
 }

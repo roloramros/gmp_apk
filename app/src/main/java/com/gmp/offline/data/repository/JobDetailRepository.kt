@@ -3,6 +3,7 @@ package com.gmp.offline.data.repository
 import android.content.Context
 import android.net.Uri
 import com.gmp.offline.BuildConfig
+import com.gmp.offline.data.local.dao.JobDao
 import com.gmp.offline.data.local.dao.JobMaterialDao
 import com.gmp.offline.data.local.dao.JobPhotoDao
 import com.gmp.offline.data.local.dao.JobWorkerDao
@@ -57,6 +58,7 @@ sealed interface PhotoActionResult {
 // falla por falta de red queda guardada localmente con uploadStatus="error"
 // y la UI ofrece un botón "Reintentar" que llama a retryPhotoUpload().
 class JobDetailRepository @Inject constructor(
+    private val jobDao: JobDao,
     private val jobWorkerDao: JobWorkerDao,
     private val jobMaterialDao: JobMaterialDao,
     private val jobPhotoDao: JobPhotoDao,
@@ -68,6 +70,78 @@ class JobDetailRepository @Inject constructor(
 ) {
     fun observeWorkers(jobUuid: String): Flow<List<JobWorkerEntity>> =
         jobWorkerDao.observeByJob(jobUuid)
+
+    /**
+     * Asigna o quita a un trabajador/admin del montaje (`solo admin` según
+     * jobsActionsController.js — la UI ya lo restringe con
+     * JobDetailViewModel.isAdmin antes de mostrar esta acción).
+     *
+     * No valida solapes de horario a propósito: un mismo trabajador puede
+     * quedar asignado a más de un montaje el mismo día (pedido explícito).
+     *
+     * Igual que el resto de las acciones de estado (ver JobsRepository),
+     * aplica el cambio optimista en Room primero y encola el comando real
+     * después. Cuando se asigna el primer trabajador y el job estaba en
+     * "pending", el servidor lo pasa automáticamente a "assigned" (ver
+     * avance_fase_3.md, sección 4.2) — se replica ese mismo efecto acá para
+     * que la UI no tenga que esperar el próximo /sync.
+     */
+    suspend fun toggleWorkerAssignment(jobUuid: String, workerUuid: String, assign: Boolean) {
+        val nowIso = isoNowUtc()
+        if (assign) {
+            if (jobWorkerDao.findByJobAndUser(jobUuid, workerUuid) != null) return
+            jobWorkerDao.upsertAll(
+                listOf(
+                    JobWorkerEntity(
+                        uuid = UUID.randomUUID().toString(),
+                        jobUuid = jobUuid,
+                        userUuid = workerUuid,
+                        createdAt = nowIso,
+                        updatedAt = nowIso,
+                    ),
+                ),
+            )
+
+            val job = jobDao.getByUuid(jobUuid)
+            if (job != null && job.status == "pending") {
+                jobDao.upsertAll(listOf(job.copy(status = "assigned", updatedAt = nowIso)))
+            }
+
+            commandQueue.enqueue(
+                endpointPath = "/jobs/$jobUuid/assign",
+                httpMethod = "POST",
+                payload = mapOf("user_uuid" to workerUuid),
+            )
+        } else {
+            val existing = jobWorkerDao.findByJobAndUser(jobUuid, workerUuid) ?: return
+            jobWorkerDao.deleteByUuids(listOf(existing.uuid))
+
+            commandQueue.enqueue(
+                endpointPath = "/jobs/$jobUuid/unassign",
+                httpMethod = "POST",
+                payload = mapOf("user_uuid" to workerUuid),
+            )
+        }
+    }
+
+    /**
+     * Fija la fecha oficial confirmada del montaje (`jobs.scheduled_at`,
+     * distinta de `visit_date`/`proposed_date`). Mismo patrón optimista +
+     * outbox de siempre, contra `PATCH /jobs/:uuid`.
+     */
+    suspend fun setScheduledDate(jobUuid: String, isoDate: String?) {
+        val job = jobDao.getByUuid(jobUuid) ?: return
+        val scheduledAt = isoDate?.let { "${it}T00:00:00.000Z" }
+        val nowIso = isoNowUtc()
+
+        jobDao.upsertAll(listOf(job.copy(scheduledAt = scheduledAt, updatedAt = nowIso)))
+
+        commandQueue.enqueue(
+            endpointPath = "/jobs/$jobUuid",
+            httpMethod = "PATCH",
+            payload = mapOf("scheduled_at" to scheduledAt),
+        )
+    }
 
     fun observeMaterials(jobUuid: String): Flow<List<JobMaterialEntity>> =
         jobMaterialDao.observeByJob(jobUuid)
