@@ -112,6 +112,7 @@ fun JobsListContent(
     onOpenJob: (String) -> Unit,
     modifier: Modifier = Modifier,
     emptyMessage: String = "Aún no hay montajes registrados. Tocá el + para crear el primero.",
+    showDescriptionInsteadOfPrice: Boolean = false,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         StatusFilterBar(
@@ -140,7 +141,11 @@ fun JobsListContent(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(jobRows, key = { it.job.uuid }) { row ->
-                    JobRowCard(row = row, onClick = { onOpenJob(row.job.uuid) })
+                    JobRowCard(
+                        row = row,
+                        onClick = { onOpenJob(row.job.uuid) },
+                        showDescriptionInsteadOfPrice = showDescriptionInsteadOfPrice,
+                    )
                 }
             }
         }
@@ -182,7 +187,11 @@ private fun StatusFilterBar(
 }
 
 @Composable
-private fun JobRowCard(row: ComercialJobRow, onClick: () -> Unit) {
+private fun JobRowCard(
+    row: ComercialJobRow,
+    onClick: () -> Unit,
+    showDescriptionInsteadOfPrice: Boolean = false,
+) {
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
@@ -211,14 +220,16 @@ private fun JobRowCard(row: ComercialJobRow, onClick: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    row.job.price?.let { "$$it" } ?: "—",
+                    if (showDescriptionInsteadOfPrice) row.job.description ?: "—" else row.job.price?.let { "$$it" } ?: "—",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
                 )
                 Text(
                     row.job.scheduledAt?.take(10) ?: "sin fecha",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 12.dp),
                 )
             }
 
