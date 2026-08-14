@@ -46,18 +46,6 @@ import com.gmp.offline.ui.theme.SolarAmber
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
 
-// Pantalla principal del rol comercial ("Planificación de Montajes" en la
-// web legada): lista de jobs de la empresa con barra de filtros por estado
-// (chips con conteo, igual que `renderStatusFilterBar` de la web) y una
-// fila por job mostrando Cliente / Precio / Estado / Fecha de montaje —
-// las mismas 4 columnas que la tabla `myJobsBody` de la web. Indicador de
-// "pendiente de sync" agregado (no existe en la web, es propio del modelo
-// offline-first de la app).
-//
-// El contenido de la lista (StatusFilterBar + filas) vive en el composable
-// público `JobsListContent` más abajo, para poder reusarlo tal cual desde
-// la pestaña "Gestión de Montajes" de AdminHomeScreen (ui.admin) sin
-// duplicar la lógica de filtros ni el diseño de las filas.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ComercialJobsListScreen(
@@ -114,10 +102,6 @@ fun ComercialJobsListScreen(
     }
 }
 
-// Contenido reusable de la lista de montajes: barra de filtros por estado +
-// lista de jobs (o mensaje de estado vacío). Sin Scaffold ni FAB propios,
-// para poder embeberse tanto en ComercialJobsListScreen como en la pestaña
-// "Gestión de Montajes" de AdminHomeScreen.
 @Composable
 fun JobsListContent(
     jobRows: List<ComercialJobRow>,
@@ -127,6 +111,7 @@ fun JobsListContent(
     onClear: () -> Unit,
     onOpenJob: (String) -> Unit,
     modifier: Modifier = Modifier,
+    emptyMessage: String = "Aún no hay montajes registrados. Tocá el + para crear el primero.",
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         StatusFilterBar(
@@ -142,13 +127,10 @@ fun JobsListContent(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    if (activeFilters.isEmpty()) {
-                        "Aún no hay montajes registrados. Tocá el + para crear el primero."
-                    } else {
-                        "No hay montajes con los filtros seleccionados."
-                    },
+                    if (activeFilters.isEmpty()) emptyMessage else "No hay montajes con los filtros seleccionados.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(24.dp),
                 )
             }
         } else {
@@ -214,7 +196,6 @@ private fun JobRowCard(row: ComercialJobRow, onClick: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Columna "Cliente" (misma que j.client_name en la web)
                 Text(
                     row.clientName ?: row.job.title,
                     style = MaterialTheme.typography.titleMedium,
@@ -229,13 +210,11 @@ private fun JobRowCard(row: ComercialJobRow, onClick: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                // Columna "Precio"
                 Text(
                     row.job.price?.let { "$$it" } ?: "—",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                // Columna "Fecha montaje" (scheduledAt, fijada por admin)
                 Text(
                     row.job.scheduledAt?.take(10) ?: "sin fecha",
                     style = MaterialTheme.typography.bodySmall,
@@ -268,8 +247,7 @@ private fun JobRowCard(row: ComercialJobRow, onClick: () -> Unit) {
 private fun StatusBadge(status: String) {
     val color = jobStatusColor(status)
     Box(
-        modifier = Modifier
-            .background(color.copy(alpha = 0.14f), RoundedCornerShape(50)),
+        modifier = Modifier.background(color.copy(alpha = 0.14f), RoundedCornerShape(50)),
     ) {
         Text(
             jobStatusLabel(status),
