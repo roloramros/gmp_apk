@@ -15,6 +15,7 @@ import com.gmp.offline.ui.comercial.JobDetailScreen
 import com.gmp.offline.ui.comercial.JobFormScreen
 import com.gmp.offline.ui.login.LoginScreen
 import com.gmp.offline.ui.worker.WorkerHomeScreen
+import com.gmp.offline.ui.worker.WorkerJobDetailScreen
 
 object GmpRoutes {
     const val LOGIN = "login"
@@ -105,10 +106,16 @@ fun GmpNavGraph(
             route = GmpRoutes.JOB_DETAIL,
             arguments = listOf(navArgument("jobUuid") { type = NavType.StringType }),
         ) {
-            JobDetailScreen(
-                onBack = { navController.popBackStack() },
-                onEditJob = { jobUuid -> navController.navigate(GmpRoutes.jobForm(jobUuid)) },
-            )
+            if (authRepository.currentRole == "trabajador") {
+                WorkerJobDetailScreen(
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                JobDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onEditJob = { jobUuid -> navController.navigate(GmpRoutes.jobForm(jobUuid)) },
+                )
+            }
         }
     }
 }
