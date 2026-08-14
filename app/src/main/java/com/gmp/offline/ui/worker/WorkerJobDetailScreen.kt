@@ -52,6 +52,9 @@ import com.gmp.offline.ui.common.jobStatusLabel
 import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
 
+private const val CUSTOM_UNIT_SEPARATOR = "|||unit:"
+private const val OTHER_MATERIAL = "__other__"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkerJobDetailScreen(
@@ -68,19 +71,26 @@ fun WorkerJobDetailScreen(
     var showMaterialDialog by remember { mutableStateOf(false) }
     var selectedMaterialUuid by remember { mutableStateOf<String?>(null) }
     var quantity by remember { mutableStateOf("1") }
+    var customName by remember { mutableStateOf("") }
+    var customUnit by remember { mutableStateOf("") }
 
     val currentJob = job
     val catalogByUuid = materialCatalog.associateBy { it.uuid }
     val materialRows = jobMaterials
-        .groupBy { it.materialUuid ?: it.uuid }
+        .groupBy { it.materialUuid ?: it.freeTextDescription ?: it.uuid }
         .map { (_, lines) ->
             val first = lines.first()
             val qty = lines.sumOf { it.quantity.toDoubleOrNull() ?: 0.0 }
-            Triple(
-                first.materialUuid?.let { catalogByUuid[it]?.name } ?: first.freeTextDescription ?: "Material",
-                formatQuantity(qty),
-                first.materialUuid?.let { catalogByUuid[it]?.unit }.orEmpty(),
-            )
+            if (first.materialUuid != null) {
+                Triple(
+                    catalogByUuid[first.materialUuid]?.name ?: "Material",
+                    formatQuantity(qty),
+                    catalogByUuid[first.materialUuid]?.unit.orEmpty(),
+                )
+            } else {
+                val parsed = parseCustomDescription(first.freeTextDescription.orEmpty())
+                Triple(parsed.first, formatQuantity(qty), parsed.second)
+            }
         }
         .sortedBy { it.first.lowercase() }
 
@@ -203,6 +213,8 @@ fun WorkerJobDetailScreen(
                                 onClick = {
                                     selectedMaterialUuid = null
                                     quantity = "1"
+                                    customName = ""
+                                    customUnit = ""
                                     showMaterialDialog = true
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
@@ -248,6 +260,14 @@ fun WorkerJobDetailScreen(
     }
 
     if (showMaterialDialog) {
+        val isOther = selectedMaterialUuid == OTHER_MATERIAL
+        val validQuantity = (quantity.toDoubleOrNull() ?: 0.0) > 0
+        val canAdd = if (isOther) {
+            customName.isNotBlank() && customUnit.isNotBlank() && validQuantity
+        } else {
+            selectedMaterialUuid != null && validQuantity
+        }
+
         AlertDialog(
             onDismissRequest = { showMaterialDialog = false },
             title = { Text("Agregar material") },
@@ -262,7 +282,7 @@ fun WorkerJobDetailScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 300.dp)
+                            .heightIn(max = 260.dp)
                             .verticalScroll(rememberScrollState()),
                     ) {
                         materialCatalog.forEach { material ->
@@ -289,8 +309,51 @@ fun WorkerJobDetailScreen(
                                 }
                             }
                         }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedMaterialUuid = OTHER_MATERIAL }
+                                .padding(vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = isOther,
+                                onClick = { selectedMaterialUuid = OTHER_MATERIAL },
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Otros", fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "Material o gasto que no está en el catálogo",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
+
                     Spacer(Modifier.height(12.dp))
+
+                    if (isOther) {
+                        OutlinedTextField(
+                            value = customName,
+                            onValueChange = { customName = it },
+                            label = { Text("Nombre") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = customUnit,
+                            onValueChange = { customUnit = it },
+                            label = { Text("Unidad de medida") },
+                            placeholder = { Text("Ej.: viaje, km, unidad") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+
                     OutlinedTextField(
                         value = quantity,
                         onValueChange = { quantity = it },
@@ -302,9 +365,13 @@ fun WorkerJobDetailScreen(
             },
             confirmButton = {
                 TextButton(
-                    enabled = selectedMaterialUuid != null && (quantity.toDoubleOrNull() ?: 0.0) > 0,
+                    enabled = canAdd,
                     onClick = {
-                        selectedMaterialUuid?.let { viewModel.addWorkerMaterial(it, quantity) }
+                        if (isOther) {
+                            viewModel.addWorkerCustomMaterial(customName, customUnit, quantity)
+                        } else {
+                            selectedMaterialUuid?.let { viewModel.addWorkerMaterial(it, quantity) }
+                        }
                         showMaterialDialog = false
                     },
                 ) {
@@ -330,6 +397,11 @@ private fun DetailRow(label: String, value: String?) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Text(value, style = MaterialTheme.typography.bodyMedium)
+}
+
+private fun parseCustomDescription(value: String): Pair<String, String> {
+    val parts = value.split(CUSTOM_UNIT_SEPARATOR, limit = 2)
+    return if (parts.size == 2) parts[0] to parts[1] else value to ""
 }
 
 private fun formatQuantity(value: Double): String =
