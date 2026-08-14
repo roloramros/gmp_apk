@@ -603,12 +603,3 @@ private fun DetailRow(label: String, value: String?) {
     Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Text(value, style = MaterialTheme.typography.bodyMedium)
 }
-
-private data class PaymentMethodOption(val value: String, val label: String)
-
-private val PAYMENT_METHODS = listOf(
-    PaymentMethodOption("cash", "Efectivo"),
-    PaymentMethodOption("transfer", "Transferencia"),
-    PaymentMethodOption("card", "Tarjeta"),
-    PaymentMethodOption("credit", "Crédito"),
-)
