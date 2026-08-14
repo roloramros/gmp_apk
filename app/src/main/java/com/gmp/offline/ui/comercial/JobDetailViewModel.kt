@@ -60,6 +60,11 @@ class JobDetailViewModel @Inject constructor(
     private val staff: StateFlow<List<StaffEntity>> = staffRepository.observeStaff()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val assignedWorkerNames: StateFlow<List<String>> = combine(workers, staff) { assigned, people ->
+        val namesByUuid = people.associate { it.uuid to it.fullName }
+        assigned.mapNotNull { namesByUuid[it.userUuid] }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val assignableStaff: StateFlow<List<StaffEntity>> = staff
         .map { list -> list.filter { it.active && (it.role == "admin" || it.role == "trabajador") } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
