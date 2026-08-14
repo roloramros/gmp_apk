@@ -72,6 +72,7 @@ fun WorkerHomeScreen(
             onOpenJob = onOpenJob,
             modifier = Modifier.padding(innerPadding),
             emptyMessage = "No tienes montajes asignados por el momento.",
+            showDescriptionInsteadOfPrice = true,
         )
     }
 }
