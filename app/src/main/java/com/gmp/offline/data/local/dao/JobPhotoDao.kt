@@ -9,14 +9,18 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface JobPhotoDao {
 
-    @Query("SELECT * FROM job_photos WHERE jobUuid = :jobUuid")
+    @Query("SELECT * FROM job_photos WHERE jobUuid = :jobUuid ORDER BY createdAt ASC")
     fun observeByJob(jobUuid: String): Flow<List<JobPhotoEntity>>
 
-    // Solo se permite 1 foto por montaje (comercial) — lectura puntual, no
-    // Flow, para poder decidir en el repositorio si hay que reemplazar la
-    // existente antes de subir una nueva.
-    @Query("SELECT * FROM job_photos WHERE jobUuid = :jobUuid LIMIT 1")
+    @Query("SELECT * FROM job_photos WHERE jobUuid = :jobUuid ORDER BY createdAt ASC")
+    suspend fun getByJob(jobUuid: String): List<JobPhotoEntity>
+
+    // La foto principal de comercial/admin sigue usando la primera foto del montaje.
+    @Query("SELECT * FROM job_photos WHERE jobUuid = :jobUuid ORDER BY createdAt ASC LIMIT 1")
     suspend fun getFirstByJob(jobUuid: String): JobPhotoEntity?
+
+    @Query("SELECT * FROM job_photos WHERE uuid = :uuid LIMIT 1")
+    suspend fun getByUuid(uuid: String): JobPhotoEntity?
 
     @Upsert
     suspend fun upsertAll(items: List<JobPhotoEntity>)
