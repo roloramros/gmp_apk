@@ -6,6 +6,7 @@ const router = express.Router();
 const { authenticate, requireRole } = require('../middleware/auth');
 const idempotency = require('../middleware/idempotency');
 const { uploadPhotoMiddleware } = require('../middleware/upload');
+const workerPhotoLimit = require('../middleware/workerPhotoLimit');
 const jobsController = require('../controllers/jobsController');
 const jobsActionsController = require('../controllers/jobsActionsController');
 const jobMaterialsController = require('../controllers/jobMaterialsController');
@@ -37,13 +38,14 @@ router.post('/:uuid/cancel', authenticate, requireRole('admin', 'comercial'), id
 router.post('/:uuid/materials', authenticate, requireRole('admin', 'trabajador'), idempotency, jobMaterialsController.addMaterial);
 router.delete('/:uuid/materials/:material_uuid', authenticate, requireRole('admin', 'trabajador'), idempotency, jobMaterialsController.removeMaterial);
 
-// Fotos de trabajo (multipart, campo "photo"). Escritura: admin o trabajador
-// asignado (mismo criterio que materiales). Multer corre ANTES de idempotency
-// para que req.body (campos de texto del form) ya esté poblado al calcular el hash.
+// Fotos de trabajo (multipart, campo "photo"). Comercial/admin conservan la
+// lógica existente. El trabajador asignado puede añadir hasta 3 fotos propias
+// por montaje; workerPhotoLimit refuerza ese máximo también en servidor.
 router.post(
   '/:uuid/photos',
   authenticate,
   requireRole('admin', 'comercial', 'trabajador'),
+  workerPhotoLimit,
   uploadPhotoMiddleware,
   idempotency,
   jobPhotosController.uploadPhoto
