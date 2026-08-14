@@ -5,14 +5,17 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gmp.offline.data.local.entities.JobEntity
+import com.gmp.offline.data.local.entities.JobMaterialEntity
 import com.gmp.offline.data.local.entities.JobPhotoEntity
 import com.gmp.offline.data.local.entities.JobWorkerEntity
+import com.gmp.offline.data.local.entities.MaterialEntity
 import com.gmp.offline.data.local.entities.StaffEntity
 import com.gmp.offline.data.repository.AssignmentRepository
 import com.gmp.offline.data.repository.JobDetailRepository
 import com.gmp.offline.data.repository.JobsRepository
 import com.gmp.offline.data.repository.PhotoActionResult
 import com.gmp.offline.data.repository.StaffRepository
+import com.gmp.offline.data.repository.WorkerJobRepository
 import com.gmp.offline.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +41,7 @@ class JobDetailViewModel @Inject constructor(
     private val jobDetailRepository: JobDetailRepository,
     private val assignmentRepository: AssignmentRepository,
     private val staffRepository: StaffRepository,
+    private val workerJobRepository: WorkerJobRepository,
     sessionManager: SessionManager,
 ) : ViewModel() {
 
@@ -73,12 +77,34 @@ class JobDetailViewModel @Inject constructor(
         j?.clientUuid?.let { uuid -> s.find { it.uuid == uuid }?.fullName }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    val jobMaterials: StateFlow<List<JobMaterialEntity>> = workerJobRepository.observeJobMaterials(jobUuid)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val materialCatalog: StateFlow<List<MaterialEntity>> = workerJobRepository.observeCatalog()
+        .map { items -> items.sortedBy { it.name.lowercase() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val photo: StateFlow<JobPhotoEntity?> = jobDetailRepository.observePhotos(jobUuid)
         .combine(job) { photos, _ -> photos.firstOrNull() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _photoState = MutableStateFlow<PhotoUiState>(PhotoUiState.Idle)
     val photoState: StateFlow<PhotoUiState> = _photoState.asStateFlow()
+
+    fun startWorkerJob() {
+        if (!isWorker) return
+        viewModelScope.launch { workerJobRepository.startJob(jobUuid) }
+    }
+
+    fun finishWorkerJob() {
+        if (!isWorker) return
+        viewModelScope.launch { workerJobRepository.finishJob(jobUuid) }
+    }
+
+    fun addWorkerMaterial(materialUuid: String, quantity: String) {
+        if (!isWorker) return
+        viewModelScope.launch { workerJobRepository.addCatalogMaterial(jobUuid, materialUuid, quantity) }
+    }
 
     fun addPhoto(imageUri: Uri) {
         if (!canManagePhoto) return
