@@ -15,8 +15,17 @@ interface JobPhotoDao {
     @Query("SELECT * FROM job_photos WHERE jobUuid = :jobUuid ORDER BY createdAt ASC")
     suspend fun getByJob(jobUuid: String): List<JobPhotoEntity>
 
-    // La foto principal de comercial/admin sigue usando la primera foto del montaje.
-    @Query("SELECT * FROM job_photos WHERE jobUuid = :jobUuid ORDER BY createdAt ASC LIMIT 1")
+    // Foto principal del montaje: únicamente una foto subida por admin/comercial.
+    // Así reemplazar la foto principal nunca elimina una de las 3 fotos adicionales del trabajador.
+    @Query("""
+        SELECT * FROM job_photos
+        WHERE jobUuid = :jobUuid
+          AND uploadedByUuid IN (
+              SELECT uuid FROM staff WHERE role IN ('admin', 'comercial')
+          )
+        ORDER BY createdAt ASC
+        LIMIT 1
+    """)
     suspend fun getFirstByJob(jobUuid: String): JobPhotoEntity?
 
     @Query("SELECT * FROM job_photos WHERE uuid = :uuid LIMIT 1")
