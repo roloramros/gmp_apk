@@ -8,6 +8,7 @@ import com.gmp.offline.data.local.entities.JobEntity
 import com.gmp.offline.data.local.entities.JobPhotoEntity
 import com.gmp.offline.data.local.entities.JobWorkerEntity
 import com.gmp.offline.data.local.entities.StaffEntity
+import com.gmp.offline.data.repository.AssignmentRepository
 import com.gmp.offline.data.repository.JobDetailRepository
 import com.gmp.offline.data.repository.JobsRepository
 import com.gmp.offline.data.repository.PhotoActionResult
@@ -35,6 +36,7 @@ class JobDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val jobsRepository: JobsRepository,
     private val jobDetailRepository: JobDetailRepository,
+    private val assignmentRepository: AssignmentRepository,
     private val staffRepository: StaffRepository,
     sessionManager: SessionManager,
 ) : ViewModel() {
@@ -43,9 +45,6 @@ class JobDetailViewModel @Inject constructor(
         "JobDetailViewModel requiere jobUuid en la ruta"
     }
 
-    // La asignación de personal/fecha es "solo admin" según
-    // jobsActionsController.js — comercial no ve esa card, aunque reuse
-    // esta misma pantalla de detalle.
     val isAdmin: Boolean = sessionManager.role == "admin"
 
     val job: StateFlow<JobEntity?> = jobsRepository.observeJob(jobUuid)
@@ -57,8 +56,6 @@ class JobDetailViewModel @Inject constructor(
     private val staff: StateFlow<List<StaffEntity>> = staffRepository.observeStaff()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // Personal asignable al montaje: admin o trabajador, nunca comercial
-    // (pedido explícito), y solo activos.
     val assignableStaff: StateFlow<List<StaffEntity>> = staff
         .map { list -> list.filter { it.active && (it.role == "admin" || it.role == "trabajador") } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -67,8 +64,6 @@ class JobDetailViewModel @Inject constructor(
         j?.clientUuid?.let { uuid -> s.find { it.uuid == uuid }?.fullName }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    // Solo se permite una foto por montaje — se observa como valor único
-    // (null si todavía no se agregó ninguna), no como lista.
     val photo: StateFlow<JobPhotoEntity?> = jobDetailRepository.observePhotos(jobUuid)
         .combine(job) { photos, _ -> photos.firstOrNull() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -76,7 +71,6 @@ class JobDetailViewModel @Inject constructor(
     private val _photoState = MutableStateFlow<PhotoUiState>(PhotoUiState.Idle)
     val photoState: StateFlow<PhotoUiState> = _photoState.asStateFlow()
 
-    /** La imagen ya llega comprimida — ver [JobDetailRepository.addPhoto]. */
     fun addPhoto(imageUri: Uri) {
         viewModelScope.launch {
             _photoState.value = PhotoUiState.Uploading
@@ -98,35 +92,20 @@ class JobDetailViewModel @Inject constructor(
     }
 
     fun removePhoto() {
-        viewModelScope.launch {
-            jobDetailRepository.removePhoto(jobUuid)
-        }
+        viewModelScope.launch { jobDetailRepository.removePhoto(jobUuid) }
     }
 
     fun clearPhotoError() {
         _photoState.value = PhotoUiState.Idle
     }
 
-    /**
-     * Cancelar solo tiene sentido (según jobsActionsController.js) desde
-     * "pending"/"assigned" — se deshabilita en la UI para otros estados,
-     * pero igual se deja la llamada acá simple: si el servidor la rechaza
-     * con 409, el próximo /sync corrige el estado local.
-     */
     fun cancelJob() {
-        viewModelScope.launch {
-            jobsRepository.cancelJob(jobUuid)
-        }
+        viewModelScope.launch { jobsRepository.cancelJob(jobUuid) }
     }
 
-    /**
-     * Confirma en un solo paso los cambios pendientes de la card de
-     * asignación (checkboxes + fecha) — la UI llama a esto solo cuando se
-     * toca "Confirmar asignación", no en cada tap individual.
-     */
     fun confirmAssignment(scheduledDate: String?, selectedWorkerUuids: Set<String>) {
         viewModelScope.launch {
-            jobDetailRepository.confirmAssignment(jobUuid, scheduledDate, selectedWorkerUuids)
+            assignmentRepository.confirmAssignment(jobUuid, scheduledDate, selectedWorkerUuids)
         }
     }
 }
