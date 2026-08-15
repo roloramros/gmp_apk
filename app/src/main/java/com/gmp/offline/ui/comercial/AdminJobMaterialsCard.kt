@@ -1,5 +1,6 @@
 package com.gmp.offline.ui.comercial
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,7 +16,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -43,6 +47,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gmp.offline.data.local.entities.JobMaterialEntity
 import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
+import com.gmp.offline.util.BillingPdfGenerator
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 private const val ADMIN_CUSTOM_UNIT_SEPARATOR = "|||unit:"
 private const val ADMIN_OTHER_MATERIAL = "__other__"
@@ -52,12 +59,14 @@ private val ADMIN_MATERIAL_BLOCKED_STATUSES = setOf("cancelled", "invoiced", "pa
 internal fun AdminJobMaterialsManager(
     viewModel: JobDetailViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val job by viewModel.job.collectAsStateWithLifecycle()
     val jobMaterials by viewModel.jobMaterials.collectAsStateWithLifecycle()
     val catalog by viewModel.materialCatalog.collectAsStateWithLifecycle()
 
     var expanded by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showInvoiceConfirm by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<JobMaterialEntity?>(null) }
     var deleting by remember { mutableStateOf<JobMaterialEntity?>(null) }
 
@@ -68,6 +77,32 @@ internal fun AdminJobMaterialsManager(
             val name = item.materialUuid?.let { catalogByUuid[it]?.name }
                 ?: parseAdminCustomDescription(item.freeTextDescription.orEmpty()).first
             name.lowercase()
+        }
+    }
+    val missingPriceRows = remember(rows) { rows.filter { it.unitPrice?.toBigDecimalOrNull() == null } }
+    val invoiceTotal = remember(rows) {
+        rows.fold(BigDecimal.ZERO) { total, item ->
+            val quantity = item.quantity.toBigDecimalOrNull() ?: BigDecimal.ZERO
+            val unitPrice = item.unitPrice?.toBigDecimalOrNull() ?: BigDecimal.ZERO
+            total + quantity.multiply(unitPrice)
+        }.setScale(2, RoundingMode.HALF_UP)
+    }
+    val currentJob = job
+    val hasInvoice = currentJob?.let { it.invoicedAt != null && !it.totalAmount.isNullOrBlank() } == true
+    val canInvoice = currentJob?.status == "finished" && rows.isNotEmpty() && missingPriceRows.isEmpty() && invoiceTotal > BigDecimal.ZERO
+
+    fun savePdf(total: String) {
+        val sourceJob = currentJob ?: return
+        BillingPdfGenerator.saveToDownloads(
+            context = context,
+            job = sourceJob,
+            materials = rows,
+            catalog = catalog,
+            totalAmount = total,
+        ).onSuccess { path ->
+            Toast.makeText(context, "PDF guardado en $path", Toast.LENGTH_LONG).show()
+        }.onFailure { error ->
+            Toast.makeText(context, error.message ?: "No se pudo guardar el PDF.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -83,11 +118,18 @@ internal fun AdminJobMaterialsManager(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "Materiales utilizados",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Facturación del Montaje",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (hasInvoice) {
+                        IconButton(onClick = { savePdf(currentJob?.totalAmount.orEmpty()) }) {
+                            Icon(Icons.Filled.Download, contentDescription = "Descargar factura PDF", tint = SolarGreen)
+                        }
+                    }
+                }
                 TextButton(onClick = { expanded = !expanded }) {
                     Text(
                         if (expanded) "Mostrar menos" else "Mostrar más",
@@ -99,7 +141,6 @@ internal fun AdminJobMaterialsManager(
 
             if (expanded) {
                 Spacer(Modifier.height(12.dp))
-
                 Button(
                     onClick = { showAddDialog = true },
                     enabled = canManage,
@@ -120,7 +161,6 @@ internal fun AdminJobMaterialsManager(
                 }
 
                 Spacer(Modifier.height(12.dp))
-
                 if (rows.isEmpty()) {
                     Text(
                         "Todavía no se han agregado materiales.",
@@ -133,39 +173,100 @@ internal fun AdminJobMaterialsManager(
                         val custom = parseAdminCustomDescription(item.freeTextDescription.orEmpty())
                         val name = catalogMaterial?.name ?: custom.first.ifBlank { "Material" }
                         val unit = catalogMaterial?.unit.orEmpty().ifBlank { custom.second }
+                        val unitPrice = item.unitPrice?.toBigDecimalOrNull()
+                        val quantity = item.quantity.toBigDecimalOrNull() ?: BigDecimal.ZERO
+                        val subtotal = unitPrice?.let { quantity.multiply(it).setScale(2, RoundingMode.HALF_UP) }
 
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 7.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                 Text(
-                                    "${item.quantity} ${unit.ifBlank { "unidad" }}",
+                                    buildString {
+                                        append("${item.quantity} ${unit.ifBlank { "unidad" }}")
+                                        if (unitPrice != null) {
+                                            append(" · ")
+                                            append('$')
+                                            append(unitPrice.setScale(2, RoundingMode.HALF_UP).toPlainString())
+                                            append(" c/u · ")
+                                            append('$')
+                                            append(subtotal?.toPlainString())
+                                        } else {
+                                            append(" · Sin precio")
+                                        }
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            IconButton(
-                                onClick = { editing = item },
-                                enabled = canManage,
-                            ) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Modificar cantidad de $name", tint = SolarGreen)
+                            IconButton(onClick = { editing = item }, enabled = canManage) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Modificar $name", tint = SolarGreen)
                             }
-                            IconButton(
-                                onClick = { deleting = item },
-                                enabled = canManage,
-                            ) {
+                            IconButton(onClick = { deleting = item }, enabled = canManage) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Eliminar $name", tint = SolarError)
                             }
                         }
                         if (index != rows.lastIndex) HorizontalDivider()
                     }
                 }
+
+                if (!hasInvoice) {
+                    Spacer(Modifier.height(16.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Button(
+                            onClick = { showInvoiceConfirm = true },
+                            enabled = canInvoice,
+                            colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
+                        ) {
+                            Icon(Icons.Filled.ReceiptLong, contentDescription = null)
+                            Text(" Facturar")
+                        }
+                    }
+                    if (currentJob?.status != "finished") {
+                        Text(
+                            "La facturación se habilita cuando el montaje está finalizado.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else if (missingPriceRows.isNotEmpty()) {
+                        Text(
+                            "Hay materiales sin precio. Usa el icono de editar para asignarles precio antes de facturar.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SolarError,
+                        )
+                    }
+                }
             }
         }
+    }
+
+    if (showInvoiceConfirm && currentJob != null) {
+        AlertDialog(
+            onDismissRequest = { showInvoiceConfirm = false },
+            title = { Text("Generar factura") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("¿Confirmas la facturación de este montaje?")
+                    Text("Precio total: " + '$' + invoiceTotal.toPlainString(), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Se guardará el total como precio oficial y se generará el PDF con los datos del montaje y el detalle de materiales.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val total = invoiceTotal.toPlainString()
+                    viewModel.invoiceJob(total)
+                    savePdf(total)
+                    showInvoiceConfirm = false
+                }) { Text("Sí, facturar", color = SolarGreen) }
+            },
+            dismissButton = { TextButton(onClick = { showInvoiceConfirm = false }) { Text("Cancelar") } },
+        )
     }
 
     if (showAddDialog) {
@@ -176,8 +277,8 @@ internal fun AdminJobMaterialsManager(
                 viewModel.addAdminMaterial(materialUuid, quantity)
                 showAddDialog = false
             },
-            onAddCustom = { name, unit, quantity ->
-                viewModel.addAdminCustomMaterial(name, unit, quantity)
+            onAddCustom = { name, unit, quantity, unitPrice ->
+                viewModel.addAdminCustomMaterial(name, unit, quantity, unitPrice)
                 showAddDialog = false
             },
         )
@@ -188,11 +289,14 @@ internal fun AdminJobMaterialsManager(
         val custom = parseAdminCustomDescription(item.freeTextDescription.orEmpty())
         val name = catalogMaterial?.name ?: custom.first.ifBlank { "Material" }
         var quantity by remember(item.uuid, item.quantity) { mutableStateOf(item.quantity) }
-        val valid = (quantity.toDoubleOrNull() ?: 0.0) > 0.0
+        var unitPrice by remember(item.uuid, item.unitPrice) { mutableStateOf(item.unitPrice.orEmpty()) }
+        val validQuantity = (quantity.toDoubleOrNull() ?: 0.0) > 0.0
+        val parsedPrice = unitPrice.toBigDecimalOrNull()
+        val validPrice = parsedPrice != null && parsedPrice >= BigDecimal.ZERO
 
         AlertDialog(
             onDismissRequest = { editing = null },
-            title = { Text("Modificar cantidad") },
+            title = { Text("Modificar material") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(name, fontWeight = FontWeight.Medium)
@@ -203,22 +307,26 @@ internal fun AdminJobMaterialsManager(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    OutlinedTextField(
+                        value = unitPrice,
+                        onValueChange = { unitPrice = it },
+                        label = { Text("Precio unitario") },
+                        prefix = { Text('$'.toString()) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             },
             confirmButton = {
                 TextButton(
-                    enabled = valid,
+                    enabled = validQuantity && validPrice,
                     onClick = {
-                        viewModel.updateAdminMaterialQuantity(item.uuid, quantity)
+                        viewModel.updateAdminMaterial(item.uuid, quantity, unitPrice)
                         editing = null
                     },
-                ) {
-                    Text("Guardar", color = SolarGreen)
-                }
+                ) { Text("Guardar", color = SolarGreen) }
             },
-            dismissButton = {
-                TextButton(onClick = { editing = null }) { Text("Cancelar") }
-            },
+            dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancelar") } },
         )
     }
 
@@ -234,13 +342,9 @@ internal fun AdminJobMaterialsManager(
                 TextButton(onClick = {
                     viewModel.removeAdminMaterial(item.uuid)
                     deleting = null
-                }) {
-                    Text("Sí, eliminar", color = SolarError)
-                }
+                }) { Text("Sí, eliminar", color = SolarError) }
             },
-            dismissButton = {
-                TextButton(onClick = { deleting = null }) { Text("Cancelar") }
-            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancelar") } },
         )
     }
 }
@@ -250,17 +354,19 @@ private fun AdminAddMaterialDialog(
     catalog: List<com.gmp.offline.data.local.entities.MaterialEntity>,
     onDismiss: () -> Unit,
     onAddCatalog: (materialUuid: String, quantity: String) -> Unit,
-    onAddCustom: (name: String, unit: String, quantity: String) -> Unit,
+    onAddCustom: (name: String, unit: String, quantity: String, unitPrice: String) -> Unit,
 ) {
     var selectedMaterialUuid by remember { mutableStateOf<String?>(null) }
     var quantity by remember { mutableStateOf("1") }
     var customName by remember { mutableStateOf("") }
     var customUnit by remember { mutableStateOf("") }
+    var customUnitPrice by remember { mutableStateOf("") }
 
     val isOther = selectedMaterialUuid == ADMIN_OTHER_MATERIAL
     val validQuantity = (quantity.toDoubleOrNull() ?: 0.0) > 0.0
+    val validCustomPrice = customUnitPrice.toBigDecimalOrNull()?.let { it >= BigDecimal.ZERO } == true
     val canAdd = if (isOther) {
-        customName.isNotBlank() && customUnit.isNotBlank() && validQuantity
+        customName.isNotBlank() && customUnit.isNotBlank() && validQuantity && validCustomPrice
     } else {
         selectedMaterialUuid != null && validQuantity
     }
@@ -277,17 +383,11 @@ private fun AdminAddMaterialDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 260.dp)
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState()),
                 ) {
                     catalog.forEach { material ->
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedMaterialUuid = material.uuid }
-                                .padding(vertical = 4.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { selectedMaterialUuid = material.uuid }.padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             RadioButton(
@@ -296,28 +396,27 @@ private fun AdminAddMaterialDialog(
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(material.name)
-                                if (!material.unit.isNullOrBlank()) {
-                                    Text(
-                                        material.unit,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                                Text(
+                                    buildString {
+                                        if (!material.unit.isNullOrBlank()) append(material.unit)
+                                        if (!material.defaultPrice.isNullOrBlank()) {
+                                            if (isNotEmpty()) append(" · ")
+                                            append('$')
+                                            append(material.defaultPrice)
+                                        }
+                                    }.ifBlank { "Sin unidad/precio configurado" },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     }
 
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedMaterialUuid = ADMIN_OTHER_MATERIAL }
-                            .padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { selectedMaterialUuid = ADMIN_OTHER_MATERIAL }.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(
-                            selected = isOther,
-                            onClick = { selectedMaterialUuid = ADMIN_OTHER_MATERIAL },
-                        )
+                        RadioButton(selected = isOther, onClick = { selectedMaterialUuid = ADMIN_OTHER_MATERIAL })
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Otros", fontWeight = FontWeight.SemiBold)
                             Text(
@@ -348,6 +447,15 @@ private fun AdminAddMaterialDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customUnitPrice,
+                        onValueChange = { customUnitPrice = it },
+                        label = { Text("Precio unitario") },
+                        prefix = { Text('$'.toString()) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(8.dp))
                 }
                 OutlinedTextField(
                     value = quantity,
@@ -362,19 +470,12 @@ private fun AdminAddMaterialDialog(
             TextButton(
                 enabled = canAdd,
                 onClick = {
-                    if (isOther) {
-                        onAddCustom(customName, customUnit, quantity)
-                    } else {
-                        selectedMaterialUuid?.let { onAddCatalog(it, quantity) }
-                    }
+                    if (isOther) onAddCustom(customName, customUnit, quantity, customUnitPrice)
+                    else selectedMaterialUuid?.let { onAddCatalog(it, quantity) }
                 },
-            ) {
-                Text("Agregar", color = SolarGreen)
-            }
+            ) { Text("Agregar", color = SolarGreen) }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
 

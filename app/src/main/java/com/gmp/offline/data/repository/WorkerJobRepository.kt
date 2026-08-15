@@ -7,6 +7,8 @@ import com.gmp.offline.data.local.entities.JobMaterialEntity
 import com.gmp.offline.data.local.entities.MaterialEntity
 import com.gmp.offline.sync.CommandQueue
 import kotlinx.coroutines.flow.Flow
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -30,11 +32,7 @@ class WorkerJobRepository @Inject constructor(
         if (job.status != "assigned") return
         val now = isoNowUtc()
         jobDao.upsertAll(listOf(job.copy(status = "in_progress", startedAt = now, updatedAt = now)))
-        commandQueue.enqueue(
-            endpointPath = "/jobs/$jobUuid/start",
-            httpMethod = "POST",
-            payload = emptyMap(),
-        )
+        commandQueue.enqueue(endpointPath = "/jobs/$jobUuid/start", httpMethod = "POST", payload = emptyMap())
     }
 
     suspend fun finishJob(jobUuid: String) {
@@ -42,26 +40,33 @@ class WorkerJobRepository @Inject constructor(
         if (job.status != "in_progress") return
         val now = isoNowUtc()
         jobDao.upsertAll(listOf(job.copy(status = "finished", finishedAt = now, updatedAt = now)))
+        commandQueue.enqueue(endpointPath = "/jobs/$jobUuid/finish", httpMethod = "POST", payload = emptyMap())
+    }
+
+    suspend fun invoiceJob(jobUuid: String, totalAmount: String) {
+        val amount = totalAmount.toBigDecimalOrNull() ?: return
+        if (amount <= BigDecimal.ZERO) return
+        val job = jobDao.getByUuid(jobUuid) ?: return
+        if (job.status != "finished") return
+        val now = isoNowUtc()
+        val formattedAmount = amount.setScale(2, RoundingMode.HALF_UP).toPlainString()
+        jobDao.upsertAll(listOf(job.copy(status = "invoiced", invoicedAt = now, totalAmount = formattedAmount, price = formattedAmount, updatedAt = now)))
         commandQueue.enqueue(
-            endpointPath = "/jobs/$jobUuid/finish",
+            endpointPath = "/jobs/$jobUuid/invoice",
             httpMethod = "POST",
-            payload = emptyMap(),
+            payload = mapOf("total_amount" to formattedAmount),
         )
     }
 
     suspend fun addCatalogMaterial(jobUuid: String, materialUuid: String, quantityToAdd: String) {
         val delta = quantityToAdd.toDoubleOrNull() ?: return
         if (delta <= 0.0) return
-
         val material = materialDao.getByUuid(materialUuid) ?: return
         val existing = jobMaterialDao.findByJobAndMaterial(jobUuid, materialUuid)
         val now = isoNowUtc()
-
         if (existing != null) {
             val current = existing.quantity.toDoubleOrNull() ?: 0.0
-            jobMaterialDao.upsertAll(
-                listOf(existing.copy(quantity = formatQuantity(current + delta), updatedAt = now)),
-            )
+            jobMaterialDao.upsertAll(listOf(existing.copy(quantity = formatQuantity(current + delta), updatedAt = now)))
             commandQueue.enqueue(
                 endpointPath = "/jobs/$jobUuid/materials",
                 httpMethod = "POST",
@@ -75,21 +80,9 @@ class WorkerJobRepository @Inject constructor(
             )
             return
         }
-
         val itemUuid = UUID.randomUUID().toString()
         jobMaterialDao.upsertAll(
-            listOf(
-                JobMaterialEntity(
-                    uuid = itemUuid,
-                    jobUuid = jobUuid,
-                    materialUuid = materialUuid,
-                    freeTextDescription = null,
-                    quantity = formatQuantity(delta),
-                    unitPrice = material.defaultPrice,
-                    createdAt = now,
-                    updatedAt = now,
-                ),
-            ),
+            listOf(JobMaterialEntity(itemUuid, jobUuid, materialUuid, null, formatQuantity(delta), material.defaultPrice, now, now)),
         )
         commandQueue.enqueue(
             endpointPath = "/jobs/$jobUuid/materials",
@@ -104,20 +97,31 @@ class WorkerJobRepository @Inject constructor(
         )
     }
 
-    suspend fun addCustomMaterial(jobUuid: String, name: String, unit: String, quantityToAdd: String) {
+    suspend fun addCustomMaterial(
+        jobUuid: String,
+        name: String,
+        unit: String,
+        quantityToAdd: String,
+        unitPrice: String?,
+    ) {
         val cleanName = name.trim()
         val cleanUnit = unit.trim()
         val delta = quantityToAdd.toDoubleOrNull() ?: return
+        val price = unitPrice?.takeIf { it.isNotBlank() }?.toBigDecimalOrNull()
         if (cleanName.isBlank() || cleanUnit.isBlank() || delta <= 0.0) return
+        if (unitPrice != null && unitPrice.isNotBlank() && price == null) return
+        if (price != null && price < BigDecimal.ZERO) return
 
         val encodedDescription = encodeCustomDescription(cleanName, cleanUnit)
         val existing = jobMaterialDao.findByJobAndFreeText(jobUuid, encodedDescription)
         val now = isoNowUtc()
+        val formattedPrice = price?.setScale(2, RoundingMode.HALF_UP)?.toPlainString()
 
         if (existing != null) {
             val current = existing.quantity.toDoubleOrNull() ?: 0.0
+            val resolvedPrice = existing.unitPrice ?: formattedPrice
             jobMaterialDao.upsertAll(
-                listOf(existing.copy(quantity = formatQuantity(current + delta), updatedAt = now)),
+                listOf(existing.copy(quantity = formatQuantity(current + delta), unitPrice = resolvedPrice, updatedAt = now)),
             )
             commandQueue.enqueue(
                 endpointPath = "/jobs/$jobUuid/materials",
@@ -127,7 +131,7 @@ class WorkerJobRepository @Inject constructor(
                     "material_uuid" to null,
                     "free_text_description" to encodedDescription,
                     "quantity" to formatQuantity(delta),
-                    "unit_price" to null,
+                    "unit_price" to resolvedPrice,
                 ),
             )
             return
@@ -135,18 +139,7 @@ class WorkerJobRepository @Inject constructor(
 
         val itemUuid = UUID.randomUUID().toString()
         jobMaterialDao.upsertAll(
-            listOf(
-                JobMaterialEntity(
-                    uuid = itemUuid,
-                    jobUuid = jobUuid,
-                    materialUuid = null,
-                    freeTextDescription = encodedDescription,
-                    quantity = formatQuantity(delta),
-                    unitPrice = null,
-                    createdAt = now,
-                    updatedAt = now,
-                ),
-            ),
+            listOf(JobMaterialEntity(itemUuid, jobUuid, null, encodedDescription, formatQuantity(delta), formattedPrice, now, now)),
         )
         commandQueue.enqueue(
             endpointPath = "/jobs/$jobUuid/materials",
@@ -156,24 +149,27 @@ class WorkerJobRepository @Inject constructor(
                 "material_uuid" to null,
                 "free_text_description" to encodedDescription,
                 "quantity" to formatQuantity(delta),
-                "unit_price" to null,
+                "unit_price" to formattedPrice,
             ),
         )
     }
 
-    suspend fun updateMaterialQuantity(jobUuid: String, itemUuid: String, quantity: String) {
+    suspend fun updateMaterial(jobUuid: String, itemUuid: String, quantity: String, unitPrice: String?) {
         val exact = quantity.toDoubleOrNull() ?: return
         if (exact <= 0.0) return
         val item = jobMaterialDao.getByUuid(itemUuid) ?: return
         if (item.jobUuid != jobUuid) return
-
+        val price = unitPrice?.takeIf { it.isNotBlank() }?.toBigDecimalOrNull()
+        if (unitPrice != null && unitPrice.isNotBlank() && price == null) return
+        if (price != null && price < BigDecimal.ZERO) return
         val formatted = formatQuantity(exact)
+        val formattedPrice = price?.setScale(2, RoundingMode.HALF_UP)?.toPlainString() ?: item.unitPrice
         val now = isoNowUtc()
-        jobMaterialDao.upsertAll(listOf(item.copy(quantity = formatted, updatedAt = now)))
+        jobMaterialDao.upsertAll(listOf(item.copy(quantity = formatted, unitPrice = formattedPrice, updatedAt = now)))
         commandQueue.enqueue(
             endpointPath = "/jobs/$jobUuid/materials/$itemUuid",
             httpMethod = "PATCH",
-            payload = mapOf("quantity" to formatted),
+            payload = mapOf("quantity" to formatted, "unit_price" to formattedPrice),
         )
     }
 
@@ -181,15 +177,10 @@ class WorkerJobRepository @Inject constructor(
         val item = jobMaterialDao.getByUuid(itemUuid) ?: return
         if (item.jobUuid != jobUuid) return
         jobMaterialDao.deleteByUuids(listOf(itemUuid))
-        commandQueue.enqueue(
-            endpointPath = "/jobs/$jobUuid/materials/$itemUuid",
-            httpMethod = "DELETE",
-            payload = emptyMap(),
-        )
+        commandQueue.enqueue(endpointPath = "/jobs/$jobUuid/materials/$itemUuid", httpMethod = "DELETE", payload = emptyMap())
     }
 
-    private fun encodeCustomDescription(name: String, unit: String): String =
-        "$name|||unit:$unit"
+    private fun encodeCustomDescription(name: String, unit: String): String = "$name|||unit:$unit"
 
     private fun formatQuantity(value: Double): String =
         if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
