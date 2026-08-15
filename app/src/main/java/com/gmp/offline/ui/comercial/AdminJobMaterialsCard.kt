@@ -88,7 +88,7 @@ internal fun AdminJobMaterialsManager(
         }.setScale(2, RoundingMode.HALF_UP)
     }
     val currentJob = job
-    val hasInvoice = currentJob?.invoicedAt != null && !currentJob.totalAmount.isNullOrBlank()
+    val hasInvoice = currentJob?.let { it.invoicedAt != null && !it.totalAmount.isNullOrBlank() } == true
     val canInvoice = currentJob?.status == "finished" && rows.isNotEmpty() && missingPriceRows.isEmpty() && invoiceTotal > BigDecimal.ZERO
 
     fun savePdf(total: String) {
@@ -126,11 +126,7 @@ internal fun AdminJobMaterialsManager(
                     )
                     if (hasInvoice) {
                         IconButton(onClick = { savePdf(currentJob?.totalAmount.orEmpty()) }) {
-                            Icon(
-                                Icons.Filled.Download,
-                                contentDescription = "Descargar factura PDF",
-                                tint = SolarGreen,
-                            )
+                            Icon(Icons.Filled.Download, contentDescription = "Descargar factura PDF", tint = SolarGreen)
                         }
                     }
                 }
@@ -145,7 +141,6 @@ internal fun AdminJobMaterialsManager(
 
             if (expanded) {
                 Spacer(Modifier.height(12.dp))
-
                 Button(
                     onClick = { showAddDialog = true },
                     enabled = canManage,
@@ -166,7 +161,6 @@ internal fun AdminJobMaterialsManager(
                 }
 
                 Spacer(Modifier.height(12.dp))
-
                 if (rows.isEmpty()) {
                     Text(
                         "Todavía no se han agregado materiales.",
@@ -184,9 +178,7 @@ internal fun AdminJobMaterialsManager(
                         val subtotal = unitPrice?.let { quantity.multiply(it).setScale(2, RoundingMode.HALF_UP) }
 
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 7.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
@@ -205,16 +197,10 @@ internal fun AdminJobMaterialsManager(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            IconButton(
-                                onClick = { editing = item },
-                                enabled = canManage,
-                            ) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Modificar cantidad de $name", tint = SolarGreen)
+                            IconButton(onClick = { editing = item }, enabled = canManage) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Modificar $name", tint = SolarGreen)
                             }
-                            IconButton(
-                                onClick = { deleting = item },
-                                enabled = canManage,
-                            ) {
+                            IconButton(onClick = { deleting = item }, enabled = canManage) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Eliminar $name", tint = SolarError)
                             }
                         }
@@ -224,10 +210,7 @@ internal fun AdminJobMaterialsManager(
 
                 if (!hasInvoice) {
                     Spacer(Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         Button(
                             onClick = { showInvoiceConfirm = true },
                             enabled = canInvoice,
@@ -245,7 +228,7 @@ internal fun AdminJobMaterialsManager(
                         )
                     } else if (missingPriceRows.isNotEmpty()) {
                         Text(
-                            "Hay materiales sin precio. Corrige esas líneas antes de facturar.",
+                            "Hay materiales sin precio. Usa el icono de editar para asignarles precio antes de facturar.",
                             style = MaterialTheme.typography.bodySmall,
                             color = SolarError,
                         )
@@ -262,10 +245,7 @@ internal fun AdminJobMaterialsManager(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("¿Confirmas la facturación de este montaje?")
-                    Text(
-                        "Precio total: $${invoiceTotal.toPlainString()}",
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Text("Precio total: $${invoiceTotal.toPlainString()}", fontWeight = FontWeight.SemiBold)
                     Text(
                         "Se guardará el total como precio oficial y se generará el PDF con los datos del montaje y el detalle de materiales.",
                         style = MaterialTheme.typography.bodySmall,
@@ -279,13 +259,9 @@ internal fun AdminJobMaterialsManager(
                     viewModel.invoiceJob(total)
                     savePdf(total)
                     showInvoiceConfirm = false
-                }) {
-                    Text("Sí, facturar", color = SolarGreen)
-                }
+                }) { Text("Sí, facturar", color = SolarGreen) }
             },
-            dismissButton = {
-                TextButton(onClick = { showInvoiceConfirm = false }) { Text("Cancelar") }
-            },
+            dismissButton = { TextButton(onClick = { showInvoiceConfirm = false }) { Text("Cancelar") } },
         )
     }
 
@@ -309,11 +285,14 @@ internal fun AdminJobMaterialsManager(
         val custom = parseAdminCustomDescription(item.freeTextDescription.orEmpty())
         val name = catalogMaterial?.name ?: custom.first.ifBlank { "Material" }
         var quantity by remember(item.uuid, item.quantity) { mutableStateOf(item.quantity) }
-        val valid = (quantity.toDoubleOrNull() ?: 0.0) > 0.0
+        var unitPrice by remember(item.uuid, item.unitPrice) { mutableStateOf(item.unitPrice.orEmpty()) }
+        val validQuantity = (quantity.toDoubleOrNull() ?: 0.0) > 0.0
+        val parsedPrice = unitPrice.toBigDecimalOrNull()
+        val validPrice = parsedPrice != null && parsedPrice >= BigDecimal.ZERO
 
         AlertDialog(
             onDismissRequest = { editing = null },
-            title = { Text("Modificar cantidad") },
+            title = { Text("Modificar material") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(name, fontWeight = FontWeight.Medium)
@@ -324,22 +303,26 @@ internal fun AdminJobMaterialsManager(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    OutlinedTextField(
+                        value = unitPrice,
+                        onValueChange = { unitPrice = it },
+                        label = { Text("Precio unitario") },
+                        prefix = { Text("$") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             },
             confirmButton = {
                 TextButton(
-                    enabled = valid,
+                    enabled = validQuantity && validPrice,
                     onClick = {
-                        viewModel.updateAdminMaterialQuantity(item.uuid, quantity)
+                        viewModel.updateAdminMaterial(item.uuid, quantity, unitPrice)
                         editing = null
                     },
-                ) {
-                    Text("Guardar", color = SolarGreen)
-                }
+                ) { Text("Guardar", color = SolarGreen) }
             },
-            dismissButton = {
-                TextButton(onClick = { editing = null }) { Text("Cancelar") }
-            },
+            dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancelar") } },
         )
     }
 
@@ -355,13 +338,9 @@ internal fun AdminJobMaterialsManager(
                 TextButton(onClick = {
                     viewModel.removeAdminMaterial(item.uuid)
                     deleting = null
-                }) {
-                    Text("Sí, eliminar", color = SolarError)
-                }
+                }) { Text("Sí, eliminar", color = SolarError) }
             },
-            dismissButton = {
-                TextButton(onClick = { deleting = null }) { Text("Cancelar") }
-            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancelar") } },
         )
     }
 }
@@ -400,17 +379,11 @@ private fun AdminAddMaterialDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 260.dp)
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState()),
                 ) {
                     catalog.forEach { material ->
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedMaterialUuid = material.uuid }
-                                .padding(vertical = 4.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { selectedMaterialUuid = material.uuid }.padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             RadioButton(
@@ -435,16 +408,10 @@ private fun AdminAddMaterialDialog(
                     }
 
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedMaterialUuid = ADMIN_OTHER_MATERIAL }
-                            .padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { selectedMaterialUuid = ADMIN_OTHER_MATERIAL }.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(
-                            selected = isOther,
-                            onClick = { selectedMaterialUuid = ADMIN_OTHER_MATERIAL },
-                        )
+                        RadioButton(selected = isOther, onClick = { selectedMaterialUuid = ADMIN_OTHER_MATERIAL })
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Otros", fontWeight = FontWeight.SemiBold)
                             Text(
@@ -498,19 +465,12 @@ private fun AdminAddMaterialDialog(
             TextButton(
                 enabled = canAdd,
                 onClick = {
-                    if (isOther) {
-                        onAddCustom(customName, customUnit, quantity, customUnitPrice)
-                    } else {
-                        selectedMaterialUuid?.let { onAddCatalog(it, quantity) }
-                    }
+                    if (isOther) onAddCustom(customName, customUnit, quantity, customUnitPrice)
+                    else selectedMaterialUuid?.let { onAddCatalog(it, quantity) }
                 },
-            ) {
-                Text("Agregar", color = SolarGreen)
-            }
+            ) { Text("Agregar", color = SolarGreen) }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
 
