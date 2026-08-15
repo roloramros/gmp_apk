@@ -91,6 +91,7 @@ fun JobDetailScreen(
     val workers by viewModel.workers.collectAsStateWithLifecycle()
     val assignableStaff by viewModel.assignableStaff.collectAsStateWithLifecycle()
     val photo by viewModel.photo.collectAsStateWithLifecycle()
+    val photos by viewModel.photos.collectAsStateWithLifecycle()
     val photoState by viewModel.photoState.collectAsStateWithLifecycle()
 
     var showCancelConfirm by remember { mutableStateOf(false) }
@@ -238,6 +239,10 @@ fun JobDetailScreen(
                 onRemove = { viewModel.removePhoto() },
                 onDismissError = { viewModel.clearPhotoError() },
             )
+
+            if (photos.size > 1) {
+                AdditionalPhotosSection(photos = photos.drop(1))
+            }
 
             Spacer(Modifier.height(8.dp))
         }
@@ -590,6 +595,91 @@ private fun PhotoSection(
                     modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
                 ) {
                     Text("Cerrar", color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdditionalPhotosSection(photos: List<JobPhotoEntity>) {
+    var selectedPhoto by remember { mutableStateOf<JobPhotoEntity?>(null) }
+
+    Text("Fotos adicionales", style = MaterialTheme.typography.titleMedium)
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            photos.forEachIndexed { index, item ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = item.uploadStatus != "error") { selectedPhoto = item }
+                        .padding(vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(SolarGreen.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("📷", style = MaterialTheme.typography.titleMedium)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Foto adicional ${index + 1}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            when (item.uploadStatus) {
+                                "error" -> "Error al subir"
+                                "uploading" -> "Subiendo..."
+                                else -> "Tocar para ver"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (item.uploadStatus == "error") SolarError else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    selectedPhoto?.let { item ->
+        if (item.uploadStatus != "error") {
+            Dialog(
+                onDismissRequest = { selectedPhoto = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val model: Any = item.localPath?.let { File(it) }
+                        ?: "${BuildConfig.API_BASE_URL.trimEnd('/')}${item.url}"
+                    AsyncImage(
+                        model = model,
+                        contentDescription = "Foto adicional del montaje",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    TextButton(
+                        onClick = { selectedPhoto = null },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                    ) {
+                        Text("Cerrar", color = Color.White)
+                    }
                 }
             }
         }
