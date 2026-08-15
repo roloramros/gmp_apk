@@ -120,7 +120,7 @@ internal fun AdminJobMaterialsManager(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Materiales utilizados",
+                        "Facturación del Montaje",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
