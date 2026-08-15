@@ -2,6 +2,7 @@ package com.gmp.offline.util
 
 import android.content.ContentValues
 import android.content.Context
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
@@ -19,8 +20,16 @@ import java.math.RoundingMode
 object BillingPdfGenerator {
     private const val PAGE_WIDTH = 595
     private const val PAGE_HEIGHT = 842
-    private const val MARGIN = 42f
+    private const val MARGIN = 28f
     private const val CUSTOM_UNIT_SEPARATOR = "|||unit:"
+
+    private const val TABLE_X_1 = MARGIN
+    private const val TABLE_X_2 = 242f
+    private const val TABLE_X_3 = 348f
+    private const val TABLE_X_4 = 472f
+    private const val TABLE_RIGHT = PAGE_WIDTH - MARGIN
+    private const val TABLE_HEADER_HEIGHT = 24f
+    private const val TABLE_ROW_HEIGHT = 23f
 
     fun saveToDownloads(
         context: Context,
@@ -74,23 +83,70 @@ object BillingPdfGenerator {
     ): PdfDocument {
         val document = PdfDocument()
         val catalogByUuid = catalog.associateBy { it.uuid }
-        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 20f
+
+        val companyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(38, 38, 38)
+            textSize = 21f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        val headingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 12f
+        val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(90, 90, 90)
+            textSize = 11.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        }
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(35, 35, 35)
+            textSize = 10.5f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 10.5f }
-        val smallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 9f }
+        val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(55, 55, 55)
+            textSize = 10.5f
+        }
+        val tableHeaderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 9.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val tableTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(75, 75, 75)
+            textSize = 9.2f
+        }
+        val totalLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(35, 35, 35)
+            textSize = 13f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val totalValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(35, 35, 35)
+            textSize = 14f
+            textAlign = Paint.Align.RIGHT
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(125, 125, 125)
+            textSize = 9f
+        }
+        val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(215, 215, 215)
+            strokeWidth = 0.8f
+        }
+        val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(205, 205, 205)
+            style = Paint.Style.STROKE
+            strokeWidth = 0.7f
+        }
+        val headerBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(35, 35, 35)
+            style = Paint.Style.FILL
+        }
 
         var pageNumber = 1
         var page = document.startPage(PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create())
         var canvas = page.canvas
         var y = MARGIN
 
-        fun newPage() {
+        fun finishAndStartPage() {
             document.finishPage(page)
             pageNumber += 1
             page = document.startPage(PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create())
@@ -98,29 +154,62 @@ object BillingPdfGenerator {
             y = MARGIN
         }
 
-        fun ensureSpace(height: Float) {
-            if (y + height > PAGE_HEIGHT - MARGIN) newPage()
+        fun drawHeader() {
+            canvas.drawText("Grupo Ricali", MARGIN, y + 18f, companyPaint)
+            y += 34f
+            val serviceTitle = job.title.trim().takeIf { it.isNotBlank() } ?: "Montaje"
+            canvas.drawText("Factura de servicio · $serviceTitle", MARGIN, y, subtitlePaint)
+            y += 18f
+            canvas.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, dividerPaint)
+            y += 24f
         }
 
-        fun line(label: String, value: String?) {
+        fun drawClientLine(label: String, value: String?) {
             val clean = value?.trim().orEmpty().ifBlank { "—" }
-            ensureSpace(18f)
-            canvas.drawText("$label: $clean", MARGIN, y, bodyPaint)
+            canvas.drawText("$label:", MARGIN, y, labelPaint)
+            canvas.drawText(clean, 152f, y, valuePaint)
             y += 18f
         }
 
-        canvas.drawText("Factura de montaje", MARGIN, y, titlePaint)
-        y += 28f
-        line("Nombre", job.clientName ?: job.title)
-        line("CI", job.clientCi)
-        line("Teléfono", job.clientPhone)
-        line("Dirección", job.address)
-        line("Fecha oficial de montaje", job.scheduledAt?.take(10))
+        fun drawTableHeader() {
+            canvas.drawRect(TABLE_X_1, y, TABLE_RIGHT, y + TABLE_HEADER_HEIGHT, headerBackgroundPaint)
+            val textY = y + 16f
+            canvas.drawText("Material / Descripción", TABLE_X_1 + 6f, textY, tableHeaderPaint)
+            canvas.drawText("Cantidad", TABLE_X_2 + 6f, textY, tableHeaderPaint)
+            canvas.drawText("Precio unit.", TABLE_X_3 + 6f, textY, tableHeaderPaint)
+            canvas.drawText("Subtotal", TABLE_X_4 + 6f, textY, tableHeaderPaint)
+            y += TABLE_HEADER_HEIGHT
+        }
 
-        y += 10f
-        ensureSpace(28f)
-        canvas.drawText("Materiales utilizados", MARGIN, y, headingPaint)
-        y += 20f
+        fun drawTableRow(name: String, quantity: BigDecimal, unitPrice: BigDecimal, subtotal: BigDecimal) {
+            if (y + TABLE_ROW_HEIGHT > PAGE_HEIGHT - 70f) {
+                finishAndStartPage()
+                drawHeader()
+                drawTableHeader()
+            }
+
+            canvas.drawRect(TABLE_X_1, y, TABLE_RIGHT, y + TABLE_ROW_HEIGHT, gridPaint)
+            canvas.drawLine(TABLE_X_2, y, TABLE_X_2, y + TABLE_ROW_HEIGHT, gridPaint)
+            canvas.drawLine(TABLE_X_3, y, TABLE_X_3, y + TABLE_ROW_HEIGHT, gridPaint)
+            canvas.drawLine(TABLE_X_4, y, TABLE_X_4, y + TABLE_ROW_HEIGHT, gridPaint)
+
+            val textY = y + 15f
+            canvas.drawText(ellipsize(name, tableTextPaint, TABLE_X_2 - TABLE_X_1 - 12f), TABLE_X_1 + 6f, textY, tableTextPaint)
+            canvas.drawText(formatQuantity(quantity), TABLE_X_2 + 6f, textY, tableTextPaint)
+            canvas.drawText("$" + formatMoney(unitPrice), TABLE_X_3 + 6f, textY, tableTextPaint)
+            canvas.drawText("$" + formatMoney(subtotal), TABLE_X_4 + 6f, textY, tableTextPaint)
+            y += TABLE_ROW_HEIGHT
+        }
+
+        drawHeader()
+        drawClientLine("Cliente", job.clientName ?: job.title)
+        drawClientLine("CI", job.clientCi)
+        drawClientLine("Teléfono", job.clientPhone)
+        drawClientLine("Dirección", job.address)
+        drawClientLine("Fecha de montaje", job.scheduledAt?.take(10))
+        y += 14f
+
+        drawTableHeader()
 
         materials.sortedBy { item ->
             item.materialUuid?.let { catalogByUuid[it]?.name }
@@ -129,28 +218,36 @@ object BillingPdfGenerator {
             val catalogMaterial = item.materialUuid?.let { catalogByUuid[it] }
             val custom = parseCustom(item.freeTextDescription.orEmpty())
             val name = catalogMaterial?.name ?: custom.first.ifBlank { "Material" }
-            val unit = catalogMaterial?.unit.orEmpty().ifBlank { custom.second }.ifBlank { "unidad" }
             val quantity = item.quantity.toBigDecimalOrNull() ?: BigDecimal.ZERO
             val unitPrice = item.unitPrice?.toBigDecimalOrNull() ?: BigDecimal.ZERO
             val subtotal = quantity.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP)
-
-            ensureSpace(38f)
-            canvas.drawText(name, MARGIN, y, bodyPaint)
-            y += 15f
-            val detail = "${formatNumber(quantity)} $unit × " + '$' + formatMoney(unitPrice) + " = " + '$' + formatMoney(subtotal)
-            canvas.drawText(detail, MARGIN + 12f, y, smallPaint)
-            y += 20f
+            drawTableRow(name, quantity, unitPrice, subtotal)
         }
 
-        y += 8f
-        ensureSpace(32f)
-        canvas.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, bodyPaint)
-        y += 22f
+        if (y + 72f > PAGE_HEIGHT - MARGIN) {
+            finishAndStartPage()
+            drawHeader()
+        }
+
+        y += 24f
         val total = totalAmount.toBigDecimalOrNull() ?: BigDecimal.ZERO
-        canvas.drawText("PRECIO TOTAL: " + '$' + formatMoney(total), MARGIN, y, headingPaint)
+        canvas.drawText("Total a Pagar:", MARGIN, y, totalLabelPaint)
+        canvas.drawText("$" + formatMoney(total), PAGE_WIDTH - 105f, y, totalValuePaint)
+
+        canvas.drawText("Gracias por confiar en Grupo Ricali.", MARGIN, PAGE_HEIGHT - 34f, footerPaint)
 
         document.finishPage(page)
         return document
+    }
+
+    private fun ellipsize(text: String, paint: Paint, maxWidth: Float): String {
+        if (paint.measureText(text) <= maxWidth) return text
+        val suffix = "…"
+        var candidate = text
+        while (candidate.isNotEmpty() && paint.measureText(candidate + suffix) > maxWidth) {
+            candidate = candidate.dropLast(1)
+        }
+        return candidate + suffix
     }
 
     private fun parseCustom(value: String): Pair<String, String> {
@@ -161,6 +258,6 @@ object BillingPdfGenerator {
     private fun formatMoney(value: BigDecimal): String =
         value.setScale(2, RoundingMode.HALF_UP).toPlainString()
 
-    private fun formatNumber(value: BigDecimal): String =
-        value.stripTrailingZeros().toPlainString()
+    private fun formatQuantity(value: BigDecimal): String =
+        value.setScale(2, RoundingMode.HALF_UP).toPlainString()
 }
