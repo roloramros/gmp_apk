@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -58,20 +59,19 @@ import com.gmp.offline.ui.theme.SolarSky
 // botón "+ Añadir" arriba, modal para crear con nombre/teléfono/contraseña
 // inicial/rol, y baja con confirmación). El selector de código de país que
 // tenía la web se sacó a pedido: el teléfono va tal cual se escribe.
-//
-// El informe de trabajos por trabajador (📋 en la web, `openWorkerReportModal`)
-// queda FUERA de este paso — no se pidió, se puede agregar después como
-// una pantalla propia sobre `GET /staff/:uuid/report`.
 @Composable
 fun StaffTabContent(
     viewModel: StaffViewModel = hiltViewModel(),
 ) {
     val staff by viewModel.staff.collectAsStateWithLifecycle()
+    val jobs by viewModel.jobs.collectAsStateWithLifecycle()
+    val jobWorkers by viewModel.jobWorkers.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
     var showForm by remember { mutableStateOf(false) }
     var deactivating by remember { mutableStateOf<StaffEntity?>(null) }
+    var historyMember by remember { mutableStateOf<StaffEntity?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -113,6 +113,7 @@ fun StaffTabContent(
                 items(staff, key = { it.uuid }) { member ->
                     StaffRow(
                         member = member,
+                        onHistory = { historyMember = member },
                         onDeactivate = { deactivating = member },
                     )
                 }
@@ -133,6 +134,16 @@ fun StaffTabContent(
                     showForm = false
                 }
             },
+        )
+    }
+
+    historyMember?.let { member ->
+        StaffWorkHistoryDialog(
+            member = member,
+            staff = staff,
+            jobs = jobs,
+            jobWorkers = jobWorkers,
+            onDismiss = { historyMember = null },
         )
     }
 
@@ -163,7 +174,11 @@ fun StaffTabContent(
 }
 
 @Composable
-private fun StaffRow(member: StaffEntity, onDeactivate: () -> Unit) {
+private fun StaffRow(
+    member: StaffEntity,
+    onHistory: () -> Unit,
+    onDeactivate: () -> Unit,
+) {
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -188,6 +203,15 @@ private fun StaffRow(member: StaffEntity, onDeactivate: () -> Unit) {
                     RoleTag(member.role)
                 }
             }
+
+            IconButton(onClick = onHistory) {
+                Icon(
+                    Icons.Filled.DateRange,
+                    contentDescription = "Ver trabajos de ${member.fullName}",
+                    tint = SolarGreen,
+                )
+            }
+
             // Igual que la web (u.role !== 'admin'): un admin no se puede
             // desactivar a sí mismo ni a otro admin desde esta pantalla.
             if (member.role != "admin") {
