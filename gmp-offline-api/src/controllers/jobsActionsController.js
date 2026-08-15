@@ -192,10 +192,11 @@ async function assignWorker(req, res) {
 
     const fullJob = await getFullJobByUuid(uuid);
     if (shouldNotifyWorker) {
-      const location = fullJob && fullJob.address ? ` — ${fullJob.address}` : '';
+      const address = (fullJob && fullJob.address) || 'Dirección no especificada';
+      const description = (fullJob && fullJob.description) || 'Sin descripción del trabajo';
       await sendNotificationToUsers([worker.id], {
-        title: 'Nuevo montaje asignado',
-        body: `${jobLabel(fullJob || {})}${location}`,
+        title: 'Nuevo Montaje Asignado',
+        body: `${address}\n${description}`,
         data: {
           type: 'job_assigned',
           job_uuid: uuid,
