@@ -12,6 +12,9 @@ interface JobMaterialDao {
     @Query("SELECT * FROM job_materials WHERE jobUuid = :jobUuid")
     fun observeByJob(jobUuid: String): Flow<List<JobMaterialEntity>>
 
+    @Query("SELECT * FROM job_materials WHERE uuid = :uuid LIMIT 1")
+    suspend fun getByUuid(uuid: String): JobMaterialEntity?
+
     @Query("SELECT * FROM job_materials WHERE jobUuid = :jobUuid AND materialUuid = :materialUuid LIMIT 1")
     suspend fun findByJobAndMaterial(jobUuid: String, materialUuid: String): JobMaterialEntity?
 
