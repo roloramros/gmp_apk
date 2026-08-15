@@ -58,6 +58,39 @@ class WorkerJobRepository @Inject constructor(
         )
     }
 
+    suspend fun payJob(jobUuid: String, paymentAmount: String) {
+        val payment = paymentAmount.toBigDecimalOrNull() ?: return
+        if (payment <= BigDecimal.ZERO) return
+
+        val job = jobDao.getByUuid(jobUuid) ?: return
+        if (job.status !in setOf("invoiced", "partially_paid")) return
+
+        val total = job.totalAmount?.toBigDecimalOrNull() ?: return
+        val alreadyPaid = job.amountPaid.toBigDecimalOrNull() ?: BigDecimal.ZERO
+        val remaining = total.subtract(alreadyPaid)
+        if (remaining <= BigDecimal.ZERO || payment > remaining) return
+
+        val newPaid = alreadyPaid.add(payment).setScale(2, RoundingMode.HALF_UP)
+        val newStatus = if (newPaid.compareTo(total.setScale(2, RoundingMode.HALF_UP)) >= 0) "paid" else "partially_paid"
+        val now = isoNowUtc()
+
+        jobDao.upsertAll(
+            listOf(
+                job.copy(
+                    status = newStatus,
+                    amountPaid = newPaid.toPlainString(),
+                    updatedAt = now,
+                ),
+            ),
+        )
+
+        commandQueue.enqueue(
+            endpointPath = "/jobs/$jobUuid/pay",
+            httpMethod = "POST",
+            payload = mapOf("amount" to payment.setScale(2, RoundingMode.HALF_UP).toPlainString()),
+        )
+    }
+
     suspend fun addCatalogMaterial(jobUuid: String, materialUuid: String, quantityToAdd: String) {
         val delta = quantityToAdd.toDoubleOrNull() ?: return
         if (delta <= 0.0) return
