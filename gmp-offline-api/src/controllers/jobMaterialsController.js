@@ -77,6 +77,12 @@ async function addMaterial(req, res) {
   if (!Number.isFinite(qty) || qty <= 0) {
     return res.status(400).json({ error_code: 'invalid_quantity', message: 'quantity debe ser un número mayor a 0.' });
   }
+  if (unit_price !== undefined && unit_price !== null) {
+    const parsedPrice = Number(unit_price);
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      return res.status(400).json({ error_code: 'invalid_unit_price', message: 'unit_price debe ser un número mayor o igual a 0.' });
+    }
+  }
 
   try {
     const job = await findJob(req.user.company_id, jobUuid);
@@ -137,9 +143,10 @@ async function addMaterial(req, res) {
         await pool.query(
           `UPDATE job_materials
            SET quantity = quantity + $1,
+               unit_price = COALESCE(unit_price, $2),
                updated_at = now()
-           WHERE uuid = $2`,
-          [qty, existing.rows[0].uuid]
+           WHERE uuid = $3`,
+          [qty, resolvedUnitPrice, existing.rows[0].uuid]
         );
         return res.status(200).json(await getFullJobMaterial(existing.rows[0].uuid));
       }
@@ -172,11 +179,11 @@ async function addMaterial(req, res) {
   }
 }
 
-// Fija la cantidad exacta de una línea existente. Esta operación se usa
-// desde administración para corregir cantidades cargadas por cualquier usuario.
+// Fija cantidad y, opcionalmente, precio unitario exactos de una línea existente.
+// Solo admin por ruta: permite valorar materiales libres cargados por trabajadores.
 async function updateMaterial(req, res) {
   const { uuid: jobUuid, material_uuid: jobMaterialUuid } = req.params;
-  const { quantity } = req.body || {};
+  const { quantity, unit_price } = req.body || {};
 
   if (!isValidUuid(jobUuid)) return res.status(400).json({ error_code: 'invalid_uuid', message: 'uuid de job inválido en la URL.' });
   if (!isValidUuid(jobMaterialUuid)) return res.status(400).json({ error_code: 'invalid_uuid', message: 'material_uuid inválido en la URL.' });
@@ -184,6 +191,13 @@ async function updateMaterial(req, res) {
   const qty = Number(quantity);
   if (!Number.isFinite(qty) || qty <= 0) {
     return res.status(400).json({ error_code: 'invalid_quantity', message: 'quantity debe ser un número mayor a 0.' });
+  }
+  let parsedUnitPrice = null;
+  if (unit_price !== undefined && unit_price !== null && unit_price !== '') {
+    parsedUnitPrice = Number(unit_price);
+    if (!Number.isFinite(parsedUnitPrice) || parsedUnitPrice < 0) {
+      return res.status(400).json({ error_code: 'invalid_unit_price', message: 'unit_price debe ser un número mayor o igual a 0.' });
+    }
   }
 
   try {
@@ -198,10 +212,12 @@ async function updateMaterial(req, res) {
 
     const result = await pool.query(
       `UPDATE job_materials
-       SET quantity = $1, updated_at = now()
-       WHERE uuid = $2 AND job_id = $3 AND company_id = $4 AND deleted_at IS NULL
+       SET quantity = $1,
+           unit_price = COALESCE($2, unit_price),
+           updated_at = now()
+       WHERE uuid = $3 AND job_id = $4 AND company_id = $5 AND deleted_at IS NULL
        RETURNING uuid`,
-      [qty, jobMaterialUuid, job.id, req.user.company_id]
+      [qty, parsedUnitPrice, jobMaterialUuid, job.id, req.user.company_id]
     );
 
     if (result.rows.length === 0) {
