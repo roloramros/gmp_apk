@@ -57,6 +57,11 @@ fun AdminHomeScreen(
     var searchVisible by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
+    fun closeSearch() {
+        searchVisible = false
+        searchQuery = ""
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -71,13 +76,16 @@ fun AdminHomeScreen(
                     }
                 },
                 actions = {
-                    if (currentTab == AdminTab.MONTAJES) {
-                        IconButton(onClick = {
-                            searchVisible = !searchVisible
-                            if (!searchVisible) searchQuery = ""
-                        }) {
-                            Icon(Icons.Filled.Search, contentDescription = "Buscar montaje", tint = SolarGreen)
+                    IconButton(onClick = {
+                        searchVisible = !searchVisible
+                        if (!searchVisible) searchQuery = ""
+                    }) {
+                        val description = when (currentTab) {
+                            AdminTab.MONTAJES -> "Buscar montaje"
+                            AdminTab.PERSONAL -> "Buscar personal"
+                            AdminTab.MATERIALES -> "Buscar material"
                         }
+                        Icon(Icons.Filled.Search, contentDescription = description, tint = SolarGreen)
                     }
                     IconButton(onClick = { jobsViewModel.syncNow() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Sincronizar ahora", tint = SolarGreen)
@@ -118,14 +126,24 @@ fun AdminHomeScreen(
                         selected = selectedTab == index,
                         onClick = {
                             selectedTab = index
-                            if (AdminTab.entries[index] != AdminTab.MONTAJES) {
-                                searchVisible = false
-                                searchQuery = ""
-                            }
+                            closeSearch()
                         },
                         text = { Text(tab.label) },
                     )
                 }
+            }
+
+            if (searchVisible && currentTab != AdminTab.MONTAJES) {
+                AdminSearchBar(
+                    query = searchQuery,
+                    placeholder = when (currentTab) {
+                        AdminTab.PERSONAL -> "Buscar por nombre"
+                        AdminTab.MATERIALES -> "Buscar material por nombre"
+                        AdminTab.MONTAJES -> "Buscar por nombre"
+                    },
+                    onQueryChange = { searchQuery = it },
+                    onClose = ::closeSearch,
+                )
             }
 
             when (currentTab) {
@@ -139,13 +157,10 @@ fun AdminHomeScreen(
                     searchVisible = searchVisible,
                     searchQuery = searchQuery,
                     onSearchQueryChange = { searchQuery = it },
-                    onCloseSearch = {
-                        searchVisible = false
-                        searchQuery = ""
-                    },
+                    onCloseSearch = ::closeSearch,
                 )
-                AdminTab.PERSONAL -> StaffTabContent()
-                AdminTab.MATERIALES -> MaterialsTabContent()
+                AdminTab.PERSONAL -> StaffTabContent(searchQuery = searchQuery)
+                AdminTab.MATERIALES -> MaterialsTabContent(searchQuery = searchQuery)
             }
         }
     }
