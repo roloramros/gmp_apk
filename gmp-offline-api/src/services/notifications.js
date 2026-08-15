@@ -23,7 +23,11 @@ function normalizeData(data) {
 
 async function sendNotificationToUsers(userIds, { title, body, data } = {}) {
   try {
-    const ids = [...new Set((userIds || []).filter((id) => Number.isInteger(Number(id))).map(Number))];
+    const ids = [...new Set(
+      (userIds || [])
+        .filter((id) => id !== null && id !== undefined && Number.isInteger(Number(id)))
+        .map(Number)
+    )];
     if (ids.length === 0) return { sent: 0, failed: 0, removedInvalidTokens: 0 };
 
     const tokenResult = await pool.query(
@@ -63,7 +67,7 @@ async function sendNotificationToUsers(userIds, { title, body, data } = {}) {
         if (item.success) return;
         const code = item.error && item.error.code;
         if (INVALID_TOKEN_CODES.has(code)) invalidTokens.push(chunk[index]);
-        console.error(`[notifications] FCM error token=${chunk[index]} code=${code || 'unknown'}`);
+        console.error(`[notifications] FCM rechazó un token. code=${code || 'unknown'}`);
       });
     }
 
