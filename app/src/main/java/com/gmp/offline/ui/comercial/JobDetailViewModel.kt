@@ -124,6 +124,11 @@ class JobDetailViewModel @Inject constructor(
         viewModelScope.launch { workerJobRepository.invoiceJob(jobUuid, totalAmount) }
     }
 
+    fun payJob(amount: String) {
+        if (!isAdmin) return
+        viewModelScope.launch { workerJobRepository.payJob(jobUuid, amount) }
+    }
+
     fun addWorkerMaterial(materialUuid: String, quantity: String) {
         if (!isWorker) return
         viewModelScope.launch { workerJobRepository.addCatalogMaterial(jobUuid, materialUuid, quantity) }
