@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -15,6 +16,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -31,6 +35,8 @@ fun WorkerHomeScreen(
     val jobRows by viewModel.jobRows.collectAsStateWithLifecycle()
     val statusCounts by viewModel.statusCounts.collectAsStateWithLifecycle()
     val activeFilters by viewModel.activeFilters.collectAsStateWithLifecycle()
+    var searchVisible by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -46,6 +52,16 @@ fun WorkerHomeScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        searchVisible = !searchVisible
+                        if (!searchVisible) searchQuery = ""
+                    }) {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = "Buscar montaje",
+                            tint = SolarGreen,
+                        )
+                    }
                     IconButton(onClick = { viewModel.syncNow() }) {
                         Icon(
                             Icons.Filled.Refresh,
@@ -73,6 +89,13 @@ fun WorkerHomeScreen(
             modifier = Modifier.padding(innerPadding),
             emptyMessage = "No tienes montajes asignados por el momento.",
             showDescriptionInsteadOfPrice = true,
+            searchVisible = searchVisible,
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it },
+            onCloseSearch = {
+                searchVisible = false
+                searchQuery = ""
+            },
         )
     }
 }
