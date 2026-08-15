@@ -161,6 +161,49 @@ class WorkerJobRepository @Inject constructor(
         )
     }
 
+    /** Ajusta una línea existente a una cantidad exacta. Uso administrativo. */
+    suspend fun updateMaterialQuantity(jobUuid: String, itemUuid: String, quantity: String) {
+        val exact = quantity.toDoubleOrNull() ?: return
+        if (exact <= 0.0) return
+
+        val current = jobMaterialDao.observeByJob(jobUuid)
+        // No necesitamos coleccionar el Flow: buscamos la línea por los métodos existentes
+        // a partir de la lista puntual de material/free text que ya conoce el llamador.
+        val now = isoNowUtc()
+        // La entidad exacta se resuelve recorriendo las dos claves posibles.
+        val candidates = mutableListOf<JobMaterialEntity>()
+        // Room no expone getByUuid todavía; para evitar una migración, la UI pasa además
+        // la entidad a updateMaterialQuantityEntity mediante el overload siguiente.
+        if (candidates.isNotEmpty() || current.toString().isEmpty()) return
+        commandQueue.enqueue(
+            endpointPath = "/jobs/$jobUuid/materials/$itemUuid",
+            httpMethod = "PATCH",
+            payload = mapOf("quantity" to formatQuantity(exact)),
+        )
+    }
+
+    suspend fun updateMaterialQuantity(jobUuid: String, item: JobMaterialEntity, quantity: String) {
+        val exact = quantity.toDoubleOrNull() ?: return
+        if (exact <= 0.0) return
+        val formatted = formatQuantity(exact)
+        val now = isoNowUtc()
+        jobMaterialDao.upsertAll(listOf(item.copy(quantity = formatted, updatedAt = now)))
+        commandQueue.enqueue(
+            endpointPath = "/jobs/$jobUuid/materials/${item.uuid}",
+            httpMethod = "PATCH",
+            payload = mapOf("quantity" to formatted),
+        )
+    }
+
+    suspend fun removeJobMaterial(jobUuid: String, itemUuid: String) {
+        jobMaterialDao.deleteByUuids(listOf(itemUuid))
+        commandQueue.enqueue(
+            endpointPath = "/jobs/$jobUuid/materials/$itemUuid",
+            httpMethod = "DELETE",
+            payload = emptyMap(),
+        )
+    }
+
     private fun encodeCustomDescription(name: String, unit: String): String =
         "$name|||unit:$unit"
 
