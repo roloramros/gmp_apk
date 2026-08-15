@@ -1,10 +1,10 @@
 // src/controllers/jobMaterialsController.js
 //
 // Materiales usados en un job (catálogo o texto libre).
-// POST y DELETE requieren X-Command-Id (idempotencia).
+// POST, PATCH y DELETE requieren X-Command-Id (idempotencia).
 //
 // Roles: admin, o trabajador asignado al job (mismo criterio que start/finish).
-// Se bloquea agregar/quitar si el job está 'cancelled' o en cualquier estado
+// Se bloquea agregar/quitar/modificar si el job está 'cancelled' o en cualquier estado
 // desde 'invoiced' en adelante (invoiced, partially_paid, paid).
 
 const pool = require('../db/pool');
@@ -172,6 +172,48 @@ async function addMaterial(req, res) {
   }
 }
 
+// Fija la cantidad exacta de una línea existente. Esta operación se usa
+// desde administración para corregir cantidades cargadas por cualquier usuario.
+async function updateMaterial(req, res) {
+  const { uuid: jobUuid, material_uuid: jobMaterialUuid } = req.params;
+  const { quantity } = req.body || {};
+
+  if (!isValidUuid(jobUuid)) return res.status(400).json({ error_code: 'invalid_uuid', message: 'uuid de job inválido en la URL.' });
+  if (!isValidUuid(jobMaterialUuid)) return res.status(400).json({ error_code: 'invalid_uuid', message: 'material_uuid inválido en la URL.' });
+
+  const qty = Number(quantity);
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return res.status(400).json({ error_code: 'invalid_quantity', message: 'quantity debe ser un número mayor a 0.' });
+  }
+
+  try {
+    const job = await findJob(req.user.company_id, jobUuid);
+    if (!job) return res.status(404).json({ error_code: 'not_found', message: 'Job no encontrado.' });
+    if (BLOCKED_STATUSES.includes(job.status)) {
+      return res.status(409).json({
+        error_code: 'job_closed',
+        message: `No se pueden modificar materiales de un job en estado '${job.status}'.`,
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE job_materials
+       SET quantity = $1, updated_at = now()
+       WHERE uuid = $2 AND job_id = $3 AND company_id = $4 AND deleted_at IS NULL
+       RETURNING uuid`,
+      [qty, jobMaterialUuid, job.id, req.user.company_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error_code: 'not_found', message: 'Material de job no encontrado.' });
+    }
+    return res.status(200).json(await getFullJobMaterial(result.rows[0].uuid));
+  } catch (err) {
+    console.error('[jobMaterials] Error en updateMaterial:', err);
+    return res.status(500).json({ error_code: 'internal_error', message: 'Error interno al modificar el material.' });
+  }
+}
+
 async function removeMaterial(req, res) {
   const { uuid: jobUuid, material_uuid: jobMaterialUuid } = req.params;
 
@@ -211,4 +253,4 @@ async function removeMaterial(req, res) {
   }
 }
 
-module.exports = { addMaterial, removeMaterial };
+module.exports = { addMaterial, updateMaterial, removeMaterial };
