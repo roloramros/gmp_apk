@@ -319,59 +319,7 @@ private fun SmallExpandButton(expanded: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun AdminMaterialsCard(materialRows: List<Triple<String, String, String>>) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Materiales utilizados",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                SmallExpandButton(expanded = expanded, onClick = { expanded = !expanded })
-            }
-
-            if (expanded) {
-                Spacer(Modifier.height(12.dp))
-
-                if (materialRows.isEmpty()) {
-                    Text(
-                        "Todavía no se han agregado materiales.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Text("Material", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        Text("Cant.", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.35f))
-                        Text("Unidad", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.45f))
-                    }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                    materialRows.forEach { row ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 5.dp),
-                        ) {
-                            Text(row.first, modifier = Modifier.weight(1f))
-                            Text(row.second, modifier = Modifier.weight(0.35f))
-                            Text(row.third.ifBlank { "—" }, modifier = Modifier.weight(0.45f))
-                        }
-                    }
-                }
-            }
-        }
-    }
+    AdminJobMaterialsManager()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
