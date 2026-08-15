@@ -119,6 +119,11 @@ class JobDetailViewModel @Inject constructor(
         viewModelScope.launch { workerJobRepository.finishJob(jobUuid) }
     }
 
+    fun invoiceJob(totalAmount: String) {
+        if (!isAdmin) return
+        viewModelScope.launch { workerJobRepository.invoiceJob(jobUuid, totalAmount) }
+    }
+
     fun addWorkerMaterial(materialUuid: String, quantity: String) {
         if (!isWorker) return
         viewModelScope.launch { workerJobRepository.addCatalogMaterial(jobUuid, materialUuid, quantity) }
@@ -126,7 +131,7 @@ class JobDetailViewModel @Inject constructor(
 
     fun addWorkerCustomMaterial(name: String, unit: String, quantity: String) {
         if (!isWorker) return
-        viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity) }
+        viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity, "0.00") }
     }
 
     fun addAdminMaterial(materialUuid: String, quantity: String) {
@@ -134,9 +139,9 @@ class JobDetailViewModel @Inject constructor(
         viewModelScope.launch { workerJobRepository.addCatalogMaterial(jobUuid, materialUuid, quantity) }
     }
 
-    fun addAdminCustomMaterial(name: String, unit: String, quantity: String) {
+    fun addAdminCustomMaterial(name: String, unit: String, quantity: String, unitPrice: String) {
         if (!isAdmin) return
-        viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity) }
+        viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity, unitPrice) }
     }
 
     fun updateAdminMaterialQuantity(itemUuid: String, quantity: String) {
