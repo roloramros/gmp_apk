@@ -110,12 +110,12 @@ class JobDetailViewModel @Inject constructor(
     val workerPhotoState: StateFlow<PhotoUiState> = _workerPhotoState.asStateFlow()
 
     fun startWorkerJob() {
-        if (!isWorker) return
+        if (!isWorker && !isAdmin) return
         viewModelScope.launch { workerJobRepository.startJob(jobUuid) }
     }
 
     fun finishWorkerJob() {
-        if (!isWorker) return
+        if (!isWorker && !isAdmin) return
         viewModelScope.launch { workerJobRepository.finishJob(jobUuid) }
     }
 
