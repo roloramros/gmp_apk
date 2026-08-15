@@ -62,7 +62,7 @@ internal fun AdminJobMaterialsManager(
     var deleting by remember { mutableStateOf<JobMaterialEntity?>(null) }
 
     val catalogByUuid = remember(catalog) { catalog.associateBy { it.uuid } }
-    val canManage = job?.status !in ADMIN_MATERIAL_BLOCKED_STATUSES
+    val canManage = job?.status?.let { it !in ADMIN_MATERIAL_BLOCKED_STATUSES } == true
     val rows = remember(jobMaterials, catalog) {
         jobMaterials.sortedBy { item ->
             val name = item.materialUuid?.let { catalogByUuid[it]?.name }
