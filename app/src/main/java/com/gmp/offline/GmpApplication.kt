@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import coil.Coil
 import coil.ImageLoader
+import com.gmp.offline.push.NotificationChannels
 import com.gmp.offline.sync.NetworkConnectivityObserver
 import com.gmp.offline.sync.SyncScheduler
 import dagger.hilt.android.HiltAndroidApp
@@ -28,15 +29,9 @@ class GmpApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var syncScheduler: SyncScheduler
 
-    // Mismo OkHttpClient autenticado que usa Retrofit (ver NetworkModule) —
-    // se registra como el ImageLoader por defecto de Coil para que
-    // AsyncImage() pueda cargar fotos del backend sin tener que pasar el
-    // loader a mano en cada pantalla.
     @Inject
     lateinit var imageLoader: ImageLoader
 
-    // Vive tanto como el proceso de la app — se usa solo para escuchar
-    // conectividad y disparar syncs, no para trabajo pesado.
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override val workManagerConfiguration: Configuration
@@ -47,19 +42,14 @@ class GmpApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         Coil.setImageLoader(imageLoader)
+        NotificationChannels.create(this)
         observeConnectivityForSync()
     }
 
-    // Disparador "por conectividad" del plan de Fase 5: apenas hay red de
-    // nuevo, se encola un sync inmediato en vez de esperar al próximo slot
-    // del trabajo periódico (que corre cada 15 min como mínimo). Si todavía
-    // no hay sesión iniciada, SyncWorker.doWork() lo detecta y no hace nada
-    // (ver SyncWorker) — así que es seguro escuchar esto desde el arranque
-    // de la app, sin esperar login.
     private fun observeConnectivityForSync() {
         applicationScope.launch {
             connectivityObserver.observe()
-                .drop(1) // no disparar por el valor inicial al registrar el callback
+                .drop(1)
                 .filter { isOnline -> isOnline }
                 .collect { syncScheduler.triggerImmediateSync() }
         }
