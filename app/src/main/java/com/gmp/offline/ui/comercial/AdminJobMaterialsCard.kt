@@ -89,7 +89,11 @@ internal fun AdminJobMaterialsManager(
                     fontWeight = FontWeight.SemiBold,
                 )
                 TextButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) "Mostrar menos" else "Mostrar más", color = SolarGreen)
+                    Text(
+                        if (expanded) "Mostrar menos" else "Mostrar más",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = SolarGreen,
+                    )
                 }
             }
 
