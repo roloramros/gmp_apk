@@ -187,8 +187,12 @@ internal fun AdminJobMaterialsManager(
                                     buildString {
                                         append("${item.quantity} ${unit.ifBlank { "unidad" }}")
                                         if (unitPrice != null) {
-                                            append(" · $${unitPrice.setScale(2, RoundingMode.HALF_UP).toPlainString()} c/u")
-                                            append(" · $${subtotal?.toPlainString()}")
+                                            append(" · ")
+                                            append('$')
+                                            append(unitPrice.setScale(2, RoundingMode.HALF_UP).toPlainString())
+                                            append(" c/u · ")
+                                            append('$')
+                                            append(subtotal?.toPlainString())
                                         } else {
                                             append(" · Sin precio")
                                         }
@@ -245,7 +249,7 @@ internal fun AdminJobMaterialsManager(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("¿Confirmas la facturación de este montaje?")
-                    Text("Precio total: $${invoiceTotal.toPlainString()}", fontWeight = FontWeight.SemiBold)
+                    Text("Precio total: " + '$' + invoiceTotal.toPlainString(), fontWeight = FontWeight.SemiBold)
                     Text(
                         "Se guardará el total como precio oficial y se generará el PDF con los datos del montaje y el detalle de materiales.",
                         style = MaterialTheme.typography.bodySmall,
@@ -307,7 +311,7 @@ internal fun AdminJobMaterialsManager(
                         value = unitPrice,
                         onValueChange = { unitPrice = it },
                         label = { Text("Precio unitario") },
-                        prefix = { Text("$") },
+                        prefix = { Text('$'.toString()) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -397,7 +401,8 @@ private fun AdminAddMaterialDialog(
                                         if (!material.unit.isNullOrBlank()) append(material.unit)
                                         if (!material.defaultPrice.isNullOrBlank()) {
                                             if (isNotEmpty()) append(" · ")
-                                            append("$${material.defaultPrice}")
+                                            append('$')
+                                            append(material.defaultPrice)
                                         }
                                     }.ifBlank { "Sin unidad/precio configurado" },
                                     style = MaterialTheme.typography.bodySmall,
@@ -446,7 +451,7 @@ private fun AdminAddMaterialDialog(
                         value = customUnitPrice,
                         onValueChange = { customUnitPrice = it },
                         label = { Text("Precio unitario") },
-                        prefix = { Text("$") },
+                        prefix = { Text('$'.toString()) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
