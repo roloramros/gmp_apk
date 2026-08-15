@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
@@ -67,6 +68,7 @@ internal fun AdminJobMaterialsManager(
     var expanded by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showInvoiceConfirm by remember { mutableStateOf(false) }
+    var showPaymentDialog by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<JobMaterialEntity?>(null) }
     var deleting by remember { mutableStateOf<JobMaterialEntity?>(null) }
 
@@ -89,6 +91,10 @@ internal fun AdminJobMaterialsManager(
     }
     val currentJob = job
     val hasInvoice = currentJob?.let { it.invoicedAt != null && !it.totalAmount.isNullOrBlank() } == true
+    val totalAmount = currentJob?.totalAmount?.toBigDecimalOrNull()?.setScale(2, RoundingMode.HALF_UP) ?: BigDecimal.ZERO
+    val amountPaid = currentJob?.amountPaid?.toBigDecimalOrNull()?.setScale(2, RoundingMode.HALF_UP) ?: BigDecimal.ZERO
+    val remainingAmount = totalAmount.subtract(amountPaid).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP)
+    val canPay = hasInvoice && currentJob?.status in setOf("invoiced", "partially_paid") && remainingAmount > BigDecimal.ZERO
     val canInvoice = currentJob?.status == "finished" && rows.isNotEmpty() && missingPriceRows.isEmpty() && invoiceTotal > BigDecimal.ZERO
 
     fun savePdf(total: String) {
@@ -129,6 +135,11 @@ internal fun AdminJobMaterialsManager(
                             Icon(Icons.Filled.Download, contentDescription = "Descargar factura PDF", tint = SolarGreen)
                         }
                     }
+                    if (canPay) {
+                        IconButton(onClick = { showPaymentDialog = true }) {
+                            Icon(Icons.Filled.AttachMoney, contentDescription = "Registrar pago", tint = SolarGreen)
+                        }
+                    }
                 }
                 TextButton(onClick = { expanded = !expanded }) {
                     Text(
@@ -140,7 +151,25 @@ internal fun AdminJobMaterialsManager(
             }
 
             if (expanded) {
-                Spacer(Modifier.height(12.dp))
+                if (hasInvoice) {
+                    Spacer(Modifier.height(8.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("Total: " + '$' + totalAmount.toPlainString(), fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Pagado: " + '$' + amountPaid.toPlainString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            if (currentJob?.status == "paid") "Pagado completamente" else "Pendiente: " + '$' + remainingAmount.toPlainString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (currentJob?.status == "paid") SolarGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (currentJob?.status == "paid") FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+
                 Button(
                     onClick = { showAddDialog = true },
                     enabled = canManage,
@@ -269,6 +298,18 @@ internal fun AdminJobMaterialsManager(
         )
     }
 
+    if (showPaymentDialog && currentJob != null) {
+        PaymentDialog(
+            amountPaid = amountPaid,
+            remainingAmount = remainingAmount,
+            onDismiss = { showPaymentDialog = false },
+            onPay = { amount ->
+                viewModel.payJob(amount)
+                showPaymentDialog = false
+            },
+        )
+    }
+
     if (showAddDialog) {
         AdminAddMaterialDialog(
             catalog = catalog,
@@ -347,6 +388,83 @@ internal fun AdminJobMaterialsManager(
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancelar") } },
         )
     }
+}
+
+@Composable
+private fun PaymentDialog(
+    amountPaid: BigDecimal,
+    remainingAmount: BigDecimal,
+    onDismiss: () -> Unit,
+    onPay: (String) -> Unit,
+) {
+    var mode by remember { mutableStateOf("full") }
+    var partialAmount by remember { mutableStateOf("") }
+    val parsedPartial = partialAmount.toBigDecimalOrNull()
+    val validPartial = parsedPartial != null && parsedPartial > BigDecimal.ZERO && parsedPartial <= remainingAmount
+    val canConfirm = mode == "full" || validPartial
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Registrar pago") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { mode = "full" },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = mode == "full", onClick = { mode = "full" })
+                    Text("Pago completo")
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { mode = "partial" },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = mode == "partial", onClick = { mode = "partial" })
+                    Text("Pago parcial")
+                }
+
+                if (mode == "partial") {
+                    Text(
+                        "Ya pagado: " + '$' + amountPaid.toPlainString() + " · Falta: " + '$' + remainingAmount.toPlainString(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = partialAmount,
+                        onValueChange = { partialAmount = it },
+                        label = { Text("Monto a registrar") },
+                        prefix = { Text('$'.toString()) },
+                        singleLine = true,
+                        isError = partialAmount.isNotBlank() && !validPartial,
+                        supportingText = {
+                            if (partialAmount.isNotBlank() && !validPartial) {
+                                Text("Ingresa un monto mayor a 0 y no superior al saldo pendiente.")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = canConfirm,
+                onClick = {
+                    val amount = if (mode == "full") {
+                        remainingAmount.toPlainString()
+                    } else {
+                        parsedPartial?.setScale(2, RoundingMode.HALF_UP)?.toPlainString().orEmpty()
+                    }
+                    if (amount.isNotBlank()) onPay(amount)
+                },
+            ) {
+                Text("Registrar pago", color = SolarGreen)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
 }
 
 @Composable
