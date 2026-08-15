@@ -256,6 +256,7 @@ fun JobDetailScreen(
                 photos = photos,
                 photoState = photoState,
                 canManagePhoto = viewModel.canManagePhoto,
+                canRemovePhoto = !viewModel.isAdmin,
                 onPickPhoto = {
                     pickImageLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
@@ -488,6 +489,7 @@ private fun PhotoSection(
     photos: List<JobPhotoEntity>,
     photoState: PhotoUiState,
     canManagePhoto: Boolean,
+    canRemovePhoto: Boolean,
     onPickPhoto: () -> Unit,
     onRetry: () -> Unit,
     onRemove: () -> Unit,
@@ -569,7 +571,7 @@ private fun PhotoSection(
                         }
                     }
 
-                    if (index == 0 && canManagePhoto) {
+                    if (index == 0 && canManagePhoto && (item.uploadStatus == "error" || canRemovePhoto)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (item.uploadStatus == "error") {
                                 Button(
@@ -579,10 +581,12 @@ private fun PhotoSection(
                                     Text("Reintentar")
                                 }
                             }
-                            OutlinedButton(onClick = onRemove) {
-                                Icon(Icons.Filled.Delete, contentDescription = null)
-                                Spacer(Modifier.width(6.dp))
-                                Text("Quitar")
+                            if (canRemovePhoto) {
+                                OutlinedButton(onClick = onRemove) {
+                                    Icon(Icons.Filled.Delete, contentDescription = null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Quitar")
+                                }
                             }
                         }
                         if (photos.size > 1) Spacer(Modifier.height(6.dp))
