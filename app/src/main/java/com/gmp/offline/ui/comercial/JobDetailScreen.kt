@@ -42,7 +42,6 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -104,6 +103,8 @@ fun JobDetailScreen(
     val materialCatalog by viewModel.materialCatalog.collectAsStateWithLifecycle()
 
     var showCancelConfirm by remember { mutableStateOf(false) }
+    var showStartConfirm by remember { mutableStateOf(false) }
+    var showFinishConfirm by remember { mutableStateOf(false) }
 
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -151,14 +152,14 @@ fun JobDetailScreen(
             if (viewModel.isAdmin) {
                 when (currentJob?.status) {
                     "assigned" -> FloatingActionButton(
-                        onClick = { viewModel.startWorkerJob() },
+                        onClick = { showStartConfirm = true },
                         containerColor = MaterialTheme.colorScheme.surface,
                         contentColor = SolarGreen,
                     ) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = "Iniciar trabajo")
                     }
                     "in_progress" -> FloatingActionButton(
-                        onClick = { viewModel.finishWorkerJob() },
+                        onClick = { showFinishConfirm = true },
                         containerColor = MaterialTheme.colorScheme.surface,
                         contentColor = SolarError,
                     ) {
@@ -286,6 +287,48 @@ fun JobDetailScreen(
 
             Spacer(Modifier.height(72.dp))
         }
+    }
+
+    if (showStartConfirm) {
+        AlertDialog(
+            onDismissRequest = { showStartConfirm = false },
+            title = { Text("Iniciar trabajo") },
+            text = { Text("¿Seguro que deseas iniciar este trabajo?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStartConfirm = false
+                    viewModel.startWorkerJob()
+                }) {
+                    Text("Sí, iniciar", color = SolarGreen)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartConfirm = false }) {
+                    Text("Cancelar")
+                }
+            },
+        )
+    }
+
+    if (showFinishConfirm) {
+        AlertDialog(
+            onDismissRequest = { showFinishConfirm = false },
+            title = { Text("Finalizar trabajo") },
+            text = { Text("¿Seguro que deseas dar por finalizado este trabajo?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showFinishConfirm = false
+                    viewModel.finishWorkerJob()
+                }) {
+                    Text("Sí, finalizar", color = SolarError)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFinishConfirm = false }) {
+                    Text("Cancelar")
+                }
+            },
+        )
     }
 
     if (showCancelConfirm) {
