@@ -71,6 +71,8 @@ fun WorkerJobDetailScreen(
 
     var showMore by remember { mutableStateOf(false) }
     var showMaterialDialog by remember { mutableStateOf(false) }
+    var showStartConfirm by remember { mutableStateOf(false) }
+    var showFinishConfirm by remember { mutableStateOf(false) }
     var selectedMaterialUuid by remember { mutableStateOf<String?>(null) }
     var quantity by remember { mutableStateOf("1") }
     var customName by remember { mutableStateOf("") }
@@ -111,7 +113,7 @@ fun WorkerJobDetailScreen(
             when (currentJob?.status) {
                 "assigned" -> {
                     FloatingActionButton(
-                        onClick = { viewModel.startWorkerJob() },
+                        onClick = { showStartConfirm = true },
                         containerColor = MaterialTheme.colorScheme.surface,
                         contentColor = SolarGreen,
                     ) {
@@ -120,7 +122,7 @@ fun WorkerJobDetailScreen(
                 }
                 "in_progress" -> {
                     FloatingActionButton(
-                        onClick = { viewModel.finishWorkerJob() },
+                        onClick = { showFinishConfirm = true },
                         containerColor = MaterialTheme.colorScheme.surface,
                         contentColor = SolarError,
                     ) {
@@ -269,6 +271,48 @@ fun WorkerJobDetailScreen(
 
             Spacer(Modifier.height(72.dp))
         }
+    }
+
+    if (showStartConfirm) {
+        AlertDialog(
+            onDismissRequest = { showStartConfirm = false },
+            title = { Text("Iniciar trabajo") },
+            text = { Text("¿Seguro que deseas iniciar este trabajo?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStartConfirm = false
+                    viewModel.startWorkerJob()
+                }) {
+                    Text("Sí, iniciar", color = SolarGreen)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartConfirm = false }) {
+                    Text("Cancelar")
+                }
+            },
+        )
+    }
+
+    if (showFinishConfirm) {
+        AlertDialog(
+            onDismissRequest = { showFinishConfirm = false },
+            title = { Text("Finalizar trabajo") },
+            text = { Text("¿Seguro que deseas dar por finalizado este trabajo?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showFinishConfirm = false
+                    viewModel.finishWorkerJob()
+                }) {
+                    Text("Sí, finalizar", color = SolarError)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFinishConfirm = false }) {
+                    Text("Cancelar")
+                }
+            },
+        )
     }
 
     if (showMaterialDialog) {
