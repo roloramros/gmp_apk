@@ -15,6 +15,7 @@
 // jobs. `title` pasó a ser opcional: si no llega, se autocompleta con
 // client_name, para no romper nada que dependa de title (command_log, sync).
 const pool = require('../db/pool');
+const { sendNotificationToUsers } = require('../services/notifications');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -108,6 +109,30 @@ async function resolveClientId(clientUuid, companyId) {
     return { id: null, error: { error_code: 'client_not_found', message: 'No se encontró un cliente con ese client_uuid en la empresa.' } };
   }
   return { id: result.rows[0].id, error: null };
+}
+
+async function notifyAdminsOfCommercialJobCreation(companyId, job) {
+  try {
+    const adminsResult = await pool.query(
+      `SELECT id FROM users
+       WHERE company_id = $1
+         AND role = 'admin'
+         AND active = true
+         AND deleted_at IS NULL`,
+      [companyId]
+    );
+    const adminIds = adminsResult.rows.map((row) => row.id);
+    await sendNotificationToUsers(adminIds, {
+      title: 'Nuevo montaje creado',
+      body: `${job.created_by_name || 'Comercial'} creó el montaje de ${job.client_name || job.title || 'un cliente'}`,
+      data: {
+        type: 'job_created_by_commercial',
+        job_uuid: job.uuid,
+      },
+    });
+  } catch (err) {
+    console.error('[jobs] Error preparando notificación de nuevo montaje:', err);
+  }
 }
 
 // Valida y normaliza los campos de "montaje" nuevos, comunes a create y update.
@@ -250,7 +275,11 @@ async function createJob(req, res) {
       ]
     );
     const fullResult = await pool.query(`${BASE_SELECT} WHERE j.uuid = $1`, [insertResult.rows[0].uuid]);
-    return res.status(201).json(fullResult.rows[0]);
+    const fullJob = fullResult.rows[0];
+    if (req.user.role === 'comercial') {
+      await notifyAdminsOfCommercialJobCreation(req.user.company_id, fullJob);
+    }
+    return res.status(201).json(fullJob);
   } catch (err) {
     if (err.code === '23505') {
       return res.status(409).json({ error_code: 'uuid_conflict', message: 'Ya existe un job con ese uuid.' });
