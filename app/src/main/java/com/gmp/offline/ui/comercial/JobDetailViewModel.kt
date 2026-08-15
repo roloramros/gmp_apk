@@ -129,6 +129,26 @@ class JobDetailViewModel @Inject constructor(
         viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity) }
     }
 
+    fun addAdminMaterial(materialUuid: String, quantity: String) {
+        if (!isAdmin) return
+        viewModelScope.launch { workerJobRepository.addCatalogMaterial(jobUuid, materialUuid, quantity) }
+    }
+
+    fun addAdminCustomMaterial(name: String, unit: String, quantity: String) {
+        if (!isAdmin) return
+        viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity) }
+    }
+
+    fun updateAdminMaterialQuantity(itemUuid: String, quantity: String) {
+        if (!isAdmin) return
+        viewModelScope.launch { workerJobRepository.updateMaterialQuantity(jobUuid, itemUuid, quantity) }
+    }
+
+    fun removeAdminMaterial(itemUuid: String) {
+        if (!isAdmin) return
+        viewModelScope.launch { workerJobRepository.removeJobMaterial(jobUuid, itemUuid) }
+    }
+
     fun addWorkerPhoto(imageUri: Uri) {
         if (!isWorker) return
         viewModelScope.launch {
