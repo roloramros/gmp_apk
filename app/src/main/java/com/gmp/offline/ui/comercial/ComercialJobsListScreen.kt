@@ -304,7 +304,7 @@ private fun JobRowCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    if (showDescriptionInsteadOfPrice) row.job.description ?: "—" else row.job.price?.let { "$${it}" } ?: "—",
+                    if (showDescriptionInsteadOfPrice) row.job.description ?: "—" else row.job.price?.let { "${'$'}$it" } ?: "—",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
