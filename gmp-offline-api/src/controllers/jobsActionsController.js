@@ -71,14 +71,19 @@ function jobLabel(job) {
   return job.client_name || job.title || 'el montaje';
 }
 
-async function notifyJobStatusChange(companyId, actorUserId, job, action, type) {
+async function getActorName(companyId, actorUserId) {
+  const actorResult = await pool.query(
+    `SELECT full_name FROM users
+     WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+    [actorUserId, companyId]
+  );
+  return actorResult.rows[0] ? actorResult.rows[0].full_name : 'Un trabajador';
+}
+
+async function notifyJobStarted(companyId, actorUserId, job) {
   try {
-    const [actorResult, recipientsResult] = await Promise.all([
-      pool.query(
-        `SELECT full_name FROM users
-         WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
-        [actorUserId, companyId]
-      ),
+    const [actorName, recipientsResult] = await Promise.all([
+      getActorName(companyId, actorUserId),
       pool.query(
         `SELECT id FROM users
          WHERE company_id = $1
@@ -89,20 +94,64 @@ async function notifyJobStatusChange(companyId, actorUserId, job, action, type) 
       ),
     ]);
 
-    const actorName = actorResult.rows[0] ? actorResult.rows[0].full_name : 'Un trabajador';
-    const recipientIds = recipientsResult.rows.map((row) => row.id);
-
-    await sendNotificationToUsers(recipientIds, {
-      title: action === 'inició' ? 'Montaje iniciado' : 'Montaje finalizado',
-      body: `${actorName} ${action} el montaje de ${jobLabel(job)}`,
+    await sendNotificationToUsers(recipientsResult.rows.map((row) => row.id), {
+      title: 'Montaje iniciado',
+      body: `${actorName} inició el montaje de ${jobLabel(job)}`,
       data: {
-        type,
+        type: 'job_started',
         job_uuid: job.uuid,
       },
     });
   } catch (err) {
-    // Defensa adicional: las notificaciones nunca deben romper la acción principal.
-    console.error('[jobsActions] Error preparando notificación de estado:', err);
+    console.error('[jobsActions] Error preparando notificación de inicio:', err);
+  }
+}
+
+async function notifyJobFinished(companyId, actorUserId, job) {
+  try {
+    const [actorName, recipientsResult] = await Promise.all([
+      getActorName(companyId, actorUserId),
+      pool.query(
+        `SELECT DISTINCT recipient_id AS id
+         FROM (
+           SELECT u.id AS recipient_id
+           FROM users u
+           WHERE u.company_id = $1
+             AND u.role = 'admin'
+             AND u.active = true
+             AND u.deleted_at IS NULL
+
+           UNION
+
+           SELECT u.id AS recipient_id
+           FROM jobs j
+           JOIN job_workers jw
+             ON jw.job_id = j.id
+            AND jw.deleted_at IS NULL
+           JOIN users u
+             ON u.id = jw.user_id
+            AND u.company_id = j.company_id
+           WHERE j.uuid = $2
+             AND j.company_id = $1
+             AND j.deleted_at IS NULL
+             AND u.role = 'trabajador'
+             AND u.active = true
+             AND u.deleted_at IS NULL
+         ) recipients`,
+        [companyId, job.uuid]
+      ),
+    ]);
+
+    await sendNotificationToUsers(recipientsResult.rows.map((row) => row.id), {
+      title: 'Montaje finalizado',
+      body: `${actorName} finalizó el montaje de ${jobLabel(job)}`,
+      data: {
+        type: 'job_finished',
+        job_uuid: job.uuid,
+      },
+    });
+  } catch (err) {
+    console.error('[jobsActions] Error preparando notificación de finalización:', err);
   }
 }
 
@@ -205,7 +254,7 @@ async function startJob(req, res) {
     if (result.error) return res.status(result.error.status).json(result.error.body);
 
     const fullJob = await getFullJobByUuid(uuid);
-    await notifyJobStatusChange(req.user.company_id, req.user.user_id, fullJob, 'inició', 'job_started');
+    await notifyJobStarted(req.user.company_id, req.user.user_id, fullJob);
     return res.status(200).json(fullJob);
   } catch (err) {
     console.error('[jobsActions] Error en startJob:', err);
@@ -226,7 +275,7 @@ async function finishJob(req, res) {
     if (result.error) return res.status(result.error.status).json(result.error.body);
 
     const fullJob = await getFullJobByUuid(uuid);
-    await notifyJobStatusChange(req.user.company_id, req.user.user_id, fullJob, 'finalizó', 'job_finished');
+    await notifyJobFinished(req.user.company_id, req.user.user_id, fullJob);
     return res.status(200).json(fullJob);
   } catch (err) {
     console.error('[jobsActions] Error en finishJob:', err);
