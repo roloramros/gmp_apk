@@ -93,7 +93,6 @@ fun JobDetailScreen(
     val clientName by viewModel.clientName.collectAsStateWithLifecycle()
     val workers by viewModel.workers.collectAsStateWithLifecycle()
     val assignableStaff by viewModel.assignableStaff.collectAsStateWithLifecycle()
-    val photo by viewModel.photo.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
     val photoState by viewModel.photoState.collectAsStateWithLifecycle()
 
@@ -251,10 +250,10 @@ fun JobDetailScreen(
                 )
             }
 
-            Text("Foto del montaje", style = MaterialTheme.typography.titleMedium)
+            Text("Fotos del montaje", style = MaterialTheme.typography.titleMedium)
 
             PhotoSection(
-                photo = photo,
+                photos = photos,
                 photoState = photoState,
                 canManagePhoto = viewModel.canManagePhoto,
                 onPickPhoto = {
@@ -266,10 +265,6 @@ fun JobDetailScreen(
                 onRemove = { viewModel.removePhoto() },
                 onDismissError = { viewModel.clearPhotoError() },
             )
-
-            if (photos.size > 1) {
-                AdditionalPhotosSection(photos = photos.drop(1))
-            }
 
             Spacer(Modifier.height(72.dp))
         }
@@ -490,7 +485,7 @@ private fun isoAssignDateToUtcMillis(isoDate: String): Long? {
 
 @Composable
 private fun PhotoSection(
-    photo: JobPhotoEntity?,
+    photos: List<JobPhotoEntity>,
     photoState: PhotoUiState,
     canManagePhoto: Boolean,
     onPickPhoto: () -> Unit,
@@ -498,7 +493,7 @@ private fun PhotoSection(
     onRemove: () -> Unit,
     onDismissError: () -> Unit,
 ) {
-    var showFullScreen by remember { mutableStateOf(false) }
+    var selectedPhoto by remember { mutableStateOf<JobPhotoEntity?>(null) }
 
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -507,24 +502,43 @@ private fun PhotoSection(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            when {
-                photoState is PhotoUiState.Uploading -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            if (photoState is PhotoUiState.Uploading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CircularProgressIndicator(color = SolarGreen, modifier = Modifier.size(24.dp))
+                    Text("Subiendo foto...", style = MaterialTheme.typography.bodyMedium)
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+
+            if (photos.isEmpty()) {
+                Text(
+                    if (canManagePhoto) "Todavía no hay fotos del montaje." else "No hay fotos del montaje.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (canManagePhoto) {
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = onPickPhoto,
+                        colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
                     ) {
-                        CircularProgressIndicator(color = SolarGreen, modifier = Modifier.size(24.dp))
-                        Text("Subiendo foto...", style = MaterialTheme.typography.bodyMedium)
+                        Icon(Icons.Filled.Add, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Agregar foto")
                     }
                 }
-                photo != null -> {
+            } else {
+                photos.forEachIndexed { index, item ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable(enabled = photo.uploadStatus != "error") { showFullScreen = true }
-                            .padding(vertical = 4.dp),
+                            .clickable(enabled = item.uploadStatus != "error") { selectedPhoto = item }
+                            .padding(vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
@@ -538,23 +552,26 @@ private fun PhotoSection(
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Foto cargada", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             Text(
-                                when (photo.uploadStatus) {
+                                "Foto ${index + 1}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            Text(
+                                when (item.uploadStatus) {
                                     "error" -> "Error al subir"
                                     "uploading" -> "Subiendo..."
                                     else -> "Tocar para ver"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (photo.uploadStatus == "error") SolarError else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (item.uploadStatus == "error") SolarError else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
 
-                    if (canManagePhoto) {
-                        Spacer(Modifier.height(10.dp))
+                    if (index == 0 && canManagePhoto) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (photo.uploadStatus == "error") {
+                            if (item.uploadStatus == "error") {
                                 Button(
                                     onClick = onRetry,
                                     colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
@@ -568,24 +585,7 @@ private fun PhotoSection(
                                 Text("Quitar")
                             }
                         }
-                    }
-                }
-                else -> {
-                    Text(
-                        if (canManagePhoto) "Todavía no hay foto del montaje." else "No hay foto del montaje.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (canManagePhoto) {
-                        Spacer(Modifier.height(10.dp))
-                        Button(
-                            onClick = onPickPhoto,
-                            colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Agregar foto")
-                        }
+                        if (photos.size > 1) Spacer(Modifier.height(6.dp))
                     }
                 }
             }
@@ -594,89 +594,6 @@ private fun PhotoSection(
                 Spacer(Modifier.height(10.dp))
                 Text(photoState.message, color = SolarError, style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onDismissError) { Text("Cerrar") }
-            }
-        }
-    }
-
-    if (showFullScreen && photo != null && photo.uploadStatus != "error") {
-        Dialog(
-            onDismissRequest = { showFullScreen = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black),
-                contentAlignment = Alignment.Center,
-            ) {
-                val model: Any = photo.localPath?.let { File(it) }
-                    ?: "${BuildConfig.API_BASE_URL.trimEnd('/')}${photo.url}"
-                AsyncImage(
-                    model = model,
-                    contentDescription = "Foto del montaje",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                TextButton(
-                    onClick = { showFullScreen = false },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
-                ) {
-                    Text("Cerrar", color = Color.White)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AdditionalPhotosSection(photos: List<JobPhotoEntity>) {
-    var selectedPhoto by remember { mutableStateOf<JobPhotoEntity?>(null) }
-
-    Text("Fotos adicionales", style = MaterialTheme.typography.titleMedium)
-
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            photos.forEachIndexed { index, item ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(enabled = item.uploadStatus != "error") { selectedPhoto = item }
-                        .padding(vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(SolarGreen.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("📷", style = MaterialTheme.typography.titleMedium)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Foto adicional ${index + 1}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Text(
-                            when (item.uploadStatus) {
-                                "error" -> "Error al subir"
-                                "uploading" -> "Subiendo..."
-                                else -> "Tocar para ver"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (item.uploadStatus == "error") SolarError else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
             }
         }
     }
@@ -697,7 +614,7 @@ private fun AdditionalPhotosSection(photos: List<JobPhotoEntity>) {
                         ?: "${BuildConfig.API_BASE_URL.trimEnd('/')}${item.url}"
                     AsyncImage(
                         model = model,
-                        contentDescription = "Foto adicional del montaje",
+                        contentDescription = "Foto del montaje",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize(),
                     )
