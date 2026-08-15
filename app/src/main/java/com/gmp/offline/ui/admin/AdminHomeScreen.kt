@@ -142,7 +142,7 @@ fun AdminHomeScreen(
                         AdminTab.MONTAJES -> "Buscar por nombre"
                     },
                     onQueryChange = { searchQuery = it },
-                    onClose = ::closeSearch,
+                    onClose = { closeSearch() },
                 )
             }
 
@@ -157,7 +157,7 @@ fun AdminHomeScreen(
                     searchVisible = searchVisible,
                     searchQuery = searchQuery,
                     onSearchQueryChange = { searchQuery = it },
-                    onCloseSearch = ::closeSearch,
+                    onCloseSearch = { closeSearch() },
                 )
                 AdminTab.PERSONAL -> StaffTabContent(searchQuery = searchQuery)
                 AdminTab.MATERIALES -> MaterialsTabContent(searchQuery = searchQuery)
