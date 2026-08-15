@@ -30,3 +30,8 @@ data class CompanyDto(
     val uuid: String,
     val name: String,
 )
+
+data class DeviceTokenRequest(
+    @SerializedName("fcm_token") val fcmToken: String,
+    val platform: String = "android",
+)
