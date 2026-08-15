@@ -36,6 +36,9 @@ router.post('/:uuid/cancel', authenticate, requireRole('admin', 'comercial'), id
 // Materiales usados en el job: admin, o trabajador asignado (comercial NO puede,
 // mismo criterio que start/finish; la validación de asignación vive en el controller).
 router.post('/:uuid/materials', authenticate, requireRole('admin', 'trabajador'), idempotency, jobMaterialsController.addMaterial);
+// Corrección exacta de cantidad: solo admin. Permite corregir materiales cargados
+// previamente por trabajadores sin convertir la edición en otra suma.
+router.patch('/:uuid/materials/:material_uuid', authenticate, requireRole('admin'), idempotency, jobMaterialsController.updateMaterial);
 router.delete('/:uuid/materials/:material_uuid', authenticate, requireRole('admin', 'trabajador'), idempotency, jobMaterialsController.removeMaterial);
 
 // Fotos de trabajo (multipart, campo "photo"). Comercial/admin conservan la
