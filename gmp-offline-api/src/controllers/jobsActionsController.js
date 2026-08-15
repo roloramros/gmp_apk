@@ -155,6 +155,33 @@ async function notifyJobFinished(companyId, actorUserId, job) {
   }
 }
 
+async function notifyJobInvoiced(companyId, job) {
+  try {
+    const recipientsResult = await pool.query(
+      `SELECT id FROM users
+       WHERE company_id = $1
+         AND role IN ('admin', 'comercial')
+         AND active = true
+         AND deleted_at IS NULL`,
+      [companyId]
+    );
+
+    const amount = Number(job.total_amount);
+    const formattedAmount = Number.isFinite(amount) ? amount.toFixed(2) : job.total_amount;
+
+    await sendNotificationToUsers(recipientsResult.rows.map((row) => row.id), {
+      title: 'Montaje facturado',
+      body: `${jobLabel(job)}\nTotal: $${formattedAmount}`,
+      data: {
+        type: 'job_invoiced',
+        job_uuid: job.uuid,
+      },
+    });
+  } catch (err) {
+    console.error('[jobsActions] Error preparando notificación de facturación:', err);
+  }
+}
+
 async function assignWorker(req, res) {
   const { uuid } = req.params;
   const { user_uuid } = req.body || {};
@@ -296,7 +323,10 @@ async function invoiceJob(req, res) {
       await client.query(`UPDATE jobs SET status = 'invoiced', invoiced_at = now(), total_amount = $1, updated_at = now() WHERE id = $2`, [amount, job.id]);
     });
     if (result.error) return res.status(result.error.status).json(result.error.body);
-    return res.status(200).json(await getFullJobByUuid(uuid));
+
+    const fullJob = await getFullJobByUuid(uuid);
+    await notifyJobInvoiced(req.user.company_id, fullJob);
+    return res.status(200).json(fullJob);
   } catch (err) {
     console.error('[jobsActions] Error en invoiceJob:', err);
     return res.status(500).json({ error_code: 'internal_error', message: 'Error interno al facturar el job.' });
