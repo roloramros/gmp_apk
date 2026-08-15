@@ -137,12 +137,8 @@ object BillingPdfGenerator {
             ensureSpace(38f)
             canvas.drawText(name, MARGIN, y, bodyPaint)
             y += 15f
-            canvas.drawText(
-                "${formatNumber(quantity)} $unit × $${formatMoney(unitPrice)} = $${formatMoney(subtotal)}",
-                MARGIN + 12f,
-                y,
-                smallPaint,
-            )
+            val detail = "${formatNumber(quantity)} $unit × " + '$' + formatMoney(unitPrice) + " = " + '$' + formatMoney(subtotal)
+            canvas.drawText(detail, MARGIN + 12f, y, smallPaint)
             y += 20f
         }
 
@@ -151,7 +147,7 @@ object BillingPdfGenerator {
         canvas.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, bodyPaint)
         y += 22f
         val total = totalAmount.toBigDecimalOrNull() ?: BigDecimal.ZERO
-        canvas.drawText("PRECIO TOTAL: $${formatMoney(total)}", MARGIN, y, headingPaint)
+        canvas.drawText("PRECIO TOTAL: " + '$' + formatMoney(total), MARGIN, y, headingPaint)
 
         document.finishPage(page)
         return document
