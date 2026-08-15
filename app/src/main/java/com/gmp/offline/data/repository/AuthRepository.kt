@@ -15,21 +15,11 @@ class AuthRepository @Inject constructor(
     private val sessionManager: SessionManager,
     private val syncCursorStore: SyncCursorStore,
     private val database: GmpDatabase,
+    private val deviceTokenRepository: DeviceTokenRepository,
 ) {
     suspend fun login(companyId: Int, phone: String, password: String) {
         val response = apiService.login(LoginRequest(companyId, phone, password))
 
-        // Se limpia TODO el estado local (Room + cursor de sync) antes de
-        // guardar la sesión nueva, sin importar si la empresa cambió o es
-        // la misma. Es lo que evita el bug reportado: loguearse con la
-        // empresa A, cerrar sesión (o no) y loguearse con la empresa B
-        // mostraba los datos de A hasta el próximo full resync, porque
-        // SyncEngine.pull(forceFullResync = true) solo hace upsert de lo
-        // que trae /sync — nunca borraba filas que ya no pertenecen a la
-        // empresa nueva (tienen uuids distintos, así que el upsert no las
-        // toca). Al forzar el wipe acá, el full resync que sigue en
-        // LoginViewModel repuebla Room desde cero solo con datos de la
-        // empresa que acaba de loguearse.
         wipeLocalData()
 
         sessionManager.token = response.token
@@ -37,9 +27,12 @@ class AuthRepository @Inject constructor(
         sessionManager.role = response.user.role
         sessionManager.fullName = response.user.fullName
         sessionManager.companyId = response.user.companyId
+
+        // El registro es best-effort: DeviceTokenRepository captura sus propios
+        // errores para que una falla de FCM no convierta un login válido en error.
+        deviceTokenRepository.registerCurrentToken()
     }
 
-    /** Selector de empresa en el login: GET /companies (listado público). */
     suspend fun listCompanies(): List<CompanyDto> = apiService.listCompanies()
 
     val isLoggedIn: Boolean
@@ -52,12 +45,10 @@ class AuthRepository @Inject constructor(
         get() = sessionManager.fullName
 
     suspend fun logout() {
-        // Redundante con el wipe en login() para el caso de cambio manual
-        // de cuenta, pero se hace también acá para no dejar datos de la
-        // empresa saliente en Room mientras la app está deslogueada (por
-        // ejemplo, si alguien inspecciona la base con un debugger, o si
-        // una fase futura agrega una pantalla que lea Room sin chequear
-        // sesión primero).
+        // El DELETE necesita todavía el JWT. Si no hay red, se ignora y el
+        // logout local continúa; el backend también reasigna el token si otro
+        // usuario inicia sesión luego en el mismo dispositivo.
+        deviceTokenRepository.unregisterCurrentToken()
         wipeLocalData()
         sessionManager.clear()
     }
