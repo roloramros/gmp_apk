@@ -1,5 +1,7 @@
 package com.gmp.offline.ui.comercial
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -61,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -210,10 +214,11 @@ fun JobDetailScreen(
                         )
                     }
 
-                    DetailRow("Cliente", currentJob.clientName ?: clientName)
-                    DetailRow("Teléfono", currentJob.clientPhone)
+                    DetailRow("Descripción del trabajo", currentJob.description)
+                    PhoneDetailRow(currentJob.clientPhone)
 
                     if (showFullDetails) {
+                        DetailRow("Cliente", currentJob.clientName ?: clientName)
                         DetailRow("CI", currentJob.clientCi)
                         DetailRow("Dirección", currentJob.address)
                         if (currentJob.latitude != null && currentJob.longitude != null) {
@@ -221,7 +226,6 @@ fun JobDetailScreen(
                         }
                         DetailRow("Referencia", currentJob.reference)
                         DetailRow("Notas del sitio", currentJob.siteNotes)
-                        DetailRow("Descripción del trabajo", currentJob.description)
                         DetailRow("Precio", currentJob.price?.let { "$$it" })
                         DetailRow("Forma de pago", currentJob.paymentMethod?.let { pm -> PAYMENT_METHODS.find { it.value == pm }?.label ?: pm })
                         DetailRow("Fecha de visita", currentJob.visitDate)
@@ -688,4 +692,25 @@ private fun DetailRow(label: String, value: String?) {
     Spacer(Modifier.height(6.dp))
     Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Text(value, style = MaterialTheme.typography.bodyMedium)
+}
+
+@Composable
+private fun PhoneDetailRow(phone: String?) {
+    if (phone.isNullOrBlank()) return
+    val context = LocalContext.current
+    Spacer(Modifier.height(6.dp))
+    Text("Teléfono", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(phone, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = {
+                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", phone, null)))
+            },
+        ) {
+            Icon(Icons.Filled.Call, contentDescription = "Llamar a $phone", tint = SolarGreen)
+        }
+    }
 }
