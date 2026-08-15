@@ -3,6 +3,7 @@
 
 const pool = require('../db/pool');
 const { getFullJobByUuid } = require('./jobsController');
+const { sendNotificationToUsers } = require('../services/notifications');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -66,6 +67,45 @@ async function reconcileAssignmentStatus(client, job) {
   }
 }
 
+function jobLabel(job) {
+  return job.client_name || job.title || 'el montaje';
+}
+
+async function notifyJobStatusChange(companyId, actorUserId, job, action, type) {
+  try {
+    const [actorResult, recipientsResult] = await Promise.all([
+      pool.query(
+        `SELECT full_name FROM users
+         WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+        [actorUserId, companyId]
+      ),
+      pool.query(
+        `SELECT id FROM users
+         WHERE company_id = $1
+           AND role IN ('admin', 'comercial')
+           AND active = true
+           AND deleted_at IS NULL`,
+        [companyId]
+      ),
+    ]);
+
+    const actorName = actorResult.rows[0] ? actorResult.rows[0].full_name : 'Un trabajador';
+    const recipientIds = recipientsResult.rows.map((row) => row.id);
+
+    await sendNotificationToUsers(recipientIds, {
+      title: action === 'inició' ? 'Montaje iniciado' : 'Montaje finalizado',
+      body: `${actorName} ${action} el montaje de ${jobLabel(job)}`,
+      data: {
+        type,
+        job_uuid: job.uuid,
+      },
+    });
+  } catch (err) {
+    // Defensa adicional: las notificaciones nunca deben romper la acción principal.
+    console.error('[jobsActions] Error preparando notificación de estado:', err);
+  }
+}
+
 async function assignWorker(req, res) {
   const { uuid } = req.params;
   const { user_uuid } = req.body || {};
@@ -82,6 +122,7 @@ async function assignWorker(req, res) {
     const worker = workerResult.rows[0];
     if (!worker.active) return res.status(400).json({ error_code: 'worker_inactive', message: 'El trabajador está desactivado.' });
 
+    let shouldNotifyWorker = false;
     const result = await withJobLock(req.user.company_id, uuid, async (client, job) => {
       if (['cancelled', 'paid'].includes(job.status)) return invalidTransition(job.status, 'asignar trabajadores a');
       const existing = await client.query(`SELECT id, deleted_at FROM job_workers WHERE job_id = $1 AND user_id = $2`, [job.id, worker.id]);
@@ -91,13 +132,29 @@ async function assignWorker(req, res) {
            VALUES (gen_random_uuid(), $1, $2, $3, $4)`,
           [req.user.company_id, job.id, worker.id, req.body.created_by_device_id || null]
         );
+        shouldNotifyWorker = true;
       } else if (existing.rows[0].deleted_at !== null) {
         await client.query(`UPDATE job_workers SET deleted_at = NULL, updated_at = now() WHERE id = $1`, [existing.rows[0].id]);
+        shouldNotifyWorker = true;
       }
       await reconcileAssignmentStatus(client, job);
     });
     if (result.error) return res.status(result.error.status).json(result.error.body);
-    return res.status(200).json(await getFullJobByUuid(uuid));
+
+    const fullJob = await getFullJobByUuid(uuid);
+    if (shouldNotifyWorker) {
+      const location = fullJob && fullJob.address ? ` — ${fullJob.address}` : '';
+      await sendNotificationToUsers([worker.id], {
+        title: 'Nuevo montaje asignado',
+        body: `${jobLabel(fullJob || {})}${location}`,
+        data: {
+          type: 'job_assigned',
+          job_uuid: uuid,
+        },
+      });
+    }
+
+    return res.status(200).json(fullJob);
   } catch (err) {
     console.error('[jobsActions] Error en assignWorker:', err);
     return res.status(500).json({ error_code: 'internal_error', message: 'Error interno al asignar trabajador.' });
@@ -146,7 +203,10 @@ async function startJob(req, res) {
       await client.query(`UPDATE jobs SET status = 'in_progress', started_at = now(), updated_at = now() WHERE id = $1`, [job.id]);
     });
     if (result.error) return res.status(result.error.status).json(result.error.body);
-    return res.status(200).json(await getFullJobByUuid(uuid));
+
+    const fullJob = await getFullJobByUuid(uuid);
+    await notifyJobStatusChange(req.user.company_id, req.user.user_id, fullJob, 'inició', 'job_started');
+    return res.status(200).json(fullJob);
   } catch (err) {
     console.error('[jobsActions] Error en startJob:', err);
     return res.status(500).json({ error_code: 'internal_error', message: 'Error interno al iniciar el job.' });
@@ -164,7 +224,10 @@ async function finishJob(req, res) {
       await client.query(`UPDATE jobs SET status = 'finished', finished_at = now(), updated_at = now() WHERE id = $1`, [job.id]);
     });
     if (result.error) return res.status(result.error.status).json(result.error.body);
-    return res.status(200).json(await getFullJobByUuid(uuid));
+
+    const fullJob = await getFullJobByUuid(uuid);
+    await notifyJobStatusChange(req.user.company_id, req.user.user_id, fullJob, 'finalizó', 'job_finished');
+    return res.status(200).json(fullJob);
   } catch (err) {
     console.error('[jobsActions] Error en finishJob:', err);
     return res.status(500).json({ error_code: 'internal_error', message: 'Error interno al finalizar el job.' });
