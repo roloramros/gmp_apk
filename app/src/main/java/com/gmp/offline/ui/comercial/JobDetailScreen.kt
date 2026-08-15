@@ -38,6 +38,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -82,6 +83,8 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
+private const val CUSTOM_UNIT_SEPARATOR = "|||unit:"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JobDetailScreen(
@@ -95,6 +98,8 @@ fun JobDetailScreen(
     val assignableStaff by viewModel.assignableStaff.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
     val photoState by viewModel.photoState.collectAsStateWithLifecycle()
+    val jobMaterials by viewModel.jobMaterials.collectAsStateWithLifecycle()
+    val materialCatalog by viewModel.materialCatalog.collectAsStateWithLifecycle()
 
     var showCancelConfirm by remember { mutableStateOf(false) }
 
@@ -103,6 +108,24 @@ fun JobDetailScreen(
     ) { uri -> uri?.let { viewModel.addPhoto(it) } }
 
     val currentJob = job
+    val catalogByUuid = materialCatalog.associateBy { it.uuid }
+    val materialRows = jobMaterials
+        .groupBy { it.materialUuid ?: it.freeTextDescription ?: it.uuid }
+        .map { (_, lines) ->
+            val first = lines.first()
+            val qty = lines.sumOf { it.quantity.toDoubleOrNull() ?: 0.0 }
+            if (first.materialUuid != null) {
+                Triple(
+                    catalogByUuid[first.materialUuid]?.name ?: "Material",
+                    formatMaterialQuantity(qty),
+                    catalogByUuid[first.materialUuid]?.unit.orEmpty(),
+                )
+            } else {
+                val parsed = parseCustomMaterialDescription(first.freeTextDescription.orEmpty())
+                Triple(parsed.first, formatMaterialQuantity(qty), parsed.second)
+            }
+        }
+        .sortedBy { it.first.lowercase() }
 
     Scaffold(
         topBar = {
@@ -267,6 +290,10 @@ fun JobDetailScreen(
                 onDismissError = { viewModel.clearPhotoError() },
             )
 
+            if (viewModel.isAdmin) {
+                AdminMaterialsCard(materialRows = materialRows)
+            }
+
             Spacer(Modifier.height(72.dp))
         }
     }
@@ -290,6 +317,52 @@ fun JobDetailScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun AdminMaterialsCard(materialRows: List<Triple<String, String, String>>) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Materiales utilizados",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            if (materialRows.isEmpty()) {
+                Text(
+                    "Todavía no se han agregado materiales.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text("Material", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("Cant.", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.35f))
+                    Text("Unidad", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.45f))
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                materialRows.forEach { row ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 5.dp),
+                    ) {
+                        Text(row.first, modifier = Modifier.weight(1f))
+                        Text(row.second, modifier = Modifier.weight(0.35f))
+                        Text(row.third.ifBlank { "—" }, modifier = Modifier.weight(0.45f))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -633,6 +706,14 @@ private fun PhotoSection(
         }
     }
 }
+
+private fun parseCustomMaterialDescription(value: String): Pair<String, String> {
+    val parts = value.split(CUSTOM_UNIT_SEPARATOR, limit = 2)
+    return if (parts.size == 2) parts[0] to parts[1] else value to ""
+}
+
+private fun formatMaterialQuantity(value: Double): String =
+    if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
 
 @Composable
 private fun DetailRow(label: String, value: String?) {
