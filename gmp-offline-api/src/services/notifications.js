@@ -4,6 +4,7 @@
 // assign/start/finish ni dejar una transacción abierta esperando red.
 
 const pool = require('../db/pool');
+const { getMessaging } = require('firebase-admin/messaging');
 const { getFirebaseAdmin } = require('./firebaseAdmin');
 
 const INVALID_TOKEN_CODES = new Set([
@@ -43,7 +44,11 @@ async function sendNotificationToUsers(userIds, { title, body, data } = {}) {
       return { sent: 0, failed: 0, removedInvalidTokens: 0 };
     }
 
-    const admin = getFirebaseAdmin();
+    // Inicializa el default Firebase App (lazy) y obtiene Messaging mediante
+    // la API modular de firebase-admin v14.x. El paquete raíz ya no expone
+    // admin.messaging() como función en esta instalación.
+    getFirebaseAdmin();
+    const messaging = getMessaging();
     const invalidTokens = [];
     let sent = 0;
     let failed = 0;
@@ -51,7 +56,7 @@ async function sendNotificationToUsers(userIds, { title, body, data } = {}) {
     // Firebase admite hasta 500 tokens por multicast.
     for (let offset = 0; offset < tokens.length; offset += 500) {
       const chunk = tokens.slice(offset, offset + 500);
-      const response = await admin.messaging().sendEachForMulticast({
+      const response = await messaging.sendEachForMulticast({
         tokens: chunk,
         notification: {
           title: String(title || ''),
