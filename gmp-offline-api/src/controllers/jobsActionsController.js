@@ -5,7 +5,7 @@ const pool = require('../db/pool');
 const { getFullJobByUuid } = require('./jobsController');
 const { sendNotificationToUsers } = require('../services/notifications');
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUuid(v) {
   return typeof v === 'string' && UUID_RE.test(v);
@@ -97,10 +97,7 @@ async function notifyJobStarted(companyId, actorUserId, job) {
     await sendNotificationToUsers(recipientsResult.rows.map((row) => row.id), {
       title: 'Montaje iniciado',
       body: `${actorName} inició el montaje de ${jobLabel(job)}`,
-      data: {
-        type: 'job_started',
-        job_uuid: job.uuid,
-      },
+      data: { type: 'job_started', job_uuid: job.uuid },
     });
   } catch (err) {
     console.error('[jobsActions] Error preparando notificación de inicio:', err);
@@ -114,41 +111,23 @@ async function notifyJobFinished(companyId, actorUserId, job) {
       pool.query(
         `SELECT DISTINCT recipient_id AS id
          FROM (
-           SELECT u.id AS recipient_id
-           FROM users u
-           WHERE u.company_id = $1
-             AND u.role = 'admin'
-             AND u.active = true
-             AND u.deleted_at IS NULL
-
+           SELECT u.id AS recipient_id FROM users u
+           WHERE u.company_id = $1 AND u.role = 'admin' AND u.active = true AND u.deleted_at IS NULL
            UNION
-
            SELECT u.id AS recipient_id
            FROM jobs j
-           JOIN job_workers jw
-             ON jw.job_id = j.id
-            AND jw.deleted_at IS NULL
-           JOIN users u
-             ON u.id = jw.user_id
-            AND u.company_id = j.company_id
-           WHERE j.uuid = $2
-             AND j.company_id = $1
-             AND j.deleted_at IS NULL
-             AND u.role = 'trabajador'
-             AND u.active = true
-             AND u.deleted_at IS NULL
+           JOIN job_workers jw ON jw.job_id = j.id AND jw.deleted_at IS NULL
+           JOIN users u ON u.id = jw.user_id AND u.company_id = j.company_id
+           WHERE j.uuid = $2 AND j.company_id = $1 AND j.deleted_at IS NULL
+             AND u.role = 'trabajador' AND u.active = true AND u.deleted_at IS NULL
          ) recipients`,
         [companyId, job.uuid]
       ),
     ]);
-
     await sendNotificationToUsers(recipientsResult.rows.map((row) => row.id), {
       title: 'Montaje finalizado',
       body: `${actorName} finalizó el montaje de ${jobLabel(job)}`,
-      data: {
-        type: 'job_finished',
-        job_uuid: job.uuid,
-      },
+      data: { type: 'job_finished', job_uuid: job.uuid },
     });
   } catch (err) {
     console.error('[jobsActions] Error preparando notificación de finalización:', err);
@@ -160,27 +139,20 @@ async function assignWorker(req, res) {
   const { user_uuid } = req.body || {};
   if (!isValidUuid(uuid)) return res.status(400).json({ error_code: 'invalid_uuid', message: 'uuid inválido en la URL.' });
   if (!isValidUuid(user_uuid)) return res.status(400).json({ error_code: 'invalid_user_uuid', message: 'user_uuid es requerido y debe ser un UUID válido.' });
-
   try {
     const workerResult = await pool.query(
-      `SELECT id, active FROM users
-       WHERE uuid = $1 AND company_id = $2 AND role IN ('trabajador', 'admin') AND deleted_at IS NULL`,
+      `SELECT id, active FROM users WHERE uuid = $1 AND company_id = $2 AND role IN ('trabajador', 'admin') AND deleted_at IS NULL`,
       [user_uuid, req.user.company_id]
     );
     if (workerResult.rows.length === 0) return res.status(400).json({ error_code: 'worker_not_found', message: 'No se encontró personal asignable con ese user_uuid en la empresa.' });
     const worker = workerResult.rows[0];
     if (!worker.active) return res.status(400).json({ error_code: 'worker_inactive', message: 'El trabajador está desactivado.' });
-
     let shouldNotifyWorker = false;
     const result = await withJobLock(req.user.company_id, uuid, async (client, job) => {
       if (['cancelled', 'paid'].includes(job.status)) return invalidTransition(job.status, 'asignar trabajadores a');
       const existing = await client.query(`SELECT id, deleted_at FROM job_workers WHERE job_id = $1 AND user_id = $2`, [job.id, worker.id]);
       if (existing.rows.length === 0) {
-        await client.query(
-          `INSERT INTO job_workers (uuid, company_id, job_id, user_id, created_by_device_id)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4)`,
-          [req.user.company_id, job.id, worker.id, req.body.created_by_device_id || null]
-        );
+        await client.query(`INSERT INTO job_workers (uuid, company_id, job_id, user_id, created_by_device_id) VALUES (gen_random_uuid(), $1, $2, $3, $4)`, [req.user.company_id, job.id, worker.id, req.body.created_by_device_id || null]);
         shouldNotifyWorker = true;
       } else if (existing.rows[0].deleted_at !== null) {
         await client.query(`UPDATE job_workers SET deleted_at = NULL, updated_at = now() WHERE id = $1`, [existing.rows[0].id]);
@@ -189,20 +161,16 @@ async function assignWorker(req, res) {
       await reconcileAssignmentStatus(client, job);
     });
     if (result.error) return res.status(result.error.status).json(result.error.body);
-
     const fullJob = await getFullJobByUuid(uuid);
     if (shouldNotifyWorker) {
-      const location = fullJob && fullJob.address ? ` — ${fullJob.address}` : '';
+      const address = (fullJob && fullJob.address) || 'Dirección no especificada';
+      const description = (fullJob && fullJob.description) || 'Sin descripción del trabajo';
       await sendNotificationToUsers([worker.id], {
-        title: 'Nuevo montaje asignado',
-        body: `${jobLabel(fullJob || {})}${location}`,
-        data: {
-          type: 'job_assigned',
-          job_uuid: uuid,
-        },
+        title: 'Nuevo Montaje Asignado',
+        body: `${address}\n${description}`,
+        data: { type: 'job_assigned', job_uuid: uuid },
       });
     }
-
     return res.status(200).json(fullJob);
   } catch (err) {
     console.error('[jobsActions] Error en assignWorker:', err);
@@ -215,21 +183,12 @@ async function unassignWorker(req, res) {
   const { user_uuid } = req.body || {};
   if (!isValidUuid(uuid)) return res.status(400).json({ error_code: 'invalid_uuid', message: 'uuid inválido en la URL.' });
   if (!isValidUuid(user_uuid)) return res.status(400).json({ error_code: 'invalid_user_uuid', message: 'user_uuid es requerido y debe ser un UUID válido.' });
-
   try {
-    const workerResult = await pool.query(
-      `SELECT id FROM users WHERE uuid = $1 AND company_id = $2 AND role IN ('trabajador', 'admin')`,
-      [user_uuid, req.user.company_id]
-    );
+    const workerResult = await pool.query(`SELECT id FROM users WHERE uuid = $1 AND company_id = $2 AND role IN ('trabajador', 'admin')`, [user_uuid, req.user.company_id]);
     if (workerResult.rows.length === 0) return res.status(400).json({ error_code: 'worker_not_found', message: 'No se encontró personal asignable con ese user_uuid en la empresa.' });
     const workerId = workerResult.rows[0].id;
-
     const result = await withJobLock(req.user.company_id, uuid, async (client, job) => {
-      const updateResult = await client.query(
-        `UPDATE job_workers SET deleted_at = now(), updated_at = now()
-         WHERE job_id = $1 AND user_id = $2 AND deleted_at IS NULL RETURNING id`,
-        [job.id, workerId]
-      );
+      const updateResult = await client.query(`UPDATE job_workers SET deleted_at = now(), updated_at = now() WHERE job_id = $1 AND user_id = $2 AND deleted_at IS NULL RETURNING id`, [job.id, workerId]);
       if (updateResult.rows.length === 0) return { error: { status: 404, body: { error_code: 'not_assigned', message: 'Ese trabajador no está asignado a este job.' } } };
       await reconcileAssignmentStatus(client, job);
     });
@@ -252,7 +211,6 @@ async function startJob(req, res) {
       await client.query(`UPDATE jobs SET status = 'in_progress', started_at = now(), updated_at = now() WHERE id = $1`, [job.id]);
     });
     if (result.error) return res.status(result.error.status).json(result.error.body);
-
     const fullJob = await getFullJobByUuid(uuid);
     await notifyJobStarted(req.user.company_id, req.user.user_id, fullJob);
     return res.status(200).json(fullJob);
@@ -273,7 +231,6 @@ async function finishJob(req, res) {
       await client.query(`UPDATE jobs SET status = 'finished', finished_at = now(), updated_at = now() WHERE id = $1`, [job.id]);
     });
     if (result.error) return res.status(result.error.status).json(result.error.body);
-
     const fullJob = await getFullJobByUuid(uuid);
     await notifyJobFinished(req.user.company_id, req.user.user_id, fullJob);
     return res.status(200).json(fullJob);
