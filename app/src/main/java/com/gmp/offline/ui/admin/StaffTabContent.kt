@@ -54,13 +54,9 @@ import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarSky
 
-// Pestaña "Gestión de Personal" del admin — réplica de la sección
-// "Personal" de la web legada (index.html: tabla Nombre/Teléfono/Rol +
-// botón "+ Añadir" arriba, modal para crear con nombre/teléfono/contraseña
-// inicial/rol, y baja con confirmación). El selector de código de país que
-// tenía la web se sacó a pedido: el teléfono va tal cual se escribe.
 @Composable
 fun StaffTabContent(
+    searchQuery: String = "",
     viewModel: StaffViewModel = hiltViewModel(),
 ) {
     val staff by viewModel.staff.collectAsStateWithLifecycle()
@@ -72,6 +68,12 @@ fun StaffTabContent(
     var showForm by remember { mutableStateOf(false) }
     var deactivating by remember { mutableStateOf<StaffEntity?>(null) }
     var historyMember by remember { mutableStateOf<StaffEntity?>(null) }
+
+    val normalizedQuery = searchQuery.trim()
+    val visibleStaff = remember(staff, normalizedQuery) {
+        if (normalizedQuery.isBlank()) staff
+        else staff.filter { it.fullName.contains(normalizedQuery, ignoreCase = true) }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -93,13 +95,17 @@ fun StaffTabContent(
             }
         }
 
-        if (staff.isEmpty()) {
+        if (visibleStaff.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    "Aún no hay personal registrado.",
+                    if (normalizedQuery.isNotBlank()) {
+                        "No hay personal que coincida con \"$normalizedQuery\"."
+                    } else {
+                        "Aún no hay personal registrado."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -110,7 +116,7 @@ fun StaffTabContent(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(staff, key = { it.uuid }) { member ->
+                items(visibleStaff, key = { it.uuid }) { member ->
                     StaffRow(
                         member = member,
                         onHistory = { historyMember = member },
@@ -212,8 +218,6 @@ private fun StaffRow(
                 )
             }
 
-            // Igual que la web (u.role !== 'admin'): un admin no se puede
-            // desactivar a sí mismo ni a otro admin desde esta pantalla.
             if (member.role != "admin") {
                 IconButton(onClick = onDeactivate) {
                     Icon(Icons.Filled.Delete, contentDescription = "Eliminar", tint = SolarError)
@@ -242,9 +246,6 @@ private fun RoleTag(role: String) {
     }
 }
 
-// Modal de alta — Nombre, Teléfono, Contraseña inicial, Rol. (La web
-// legada tenía además un selector de código de país; se sacó a pedido —
-// el teléfono se guarda tal cual se escribe acá).
 @Composable
 private fun StaffFormDialog(
     isSaving: Boolean,
@@ -333,7 +334,11 @@ private fun StaffFormDialog(
         },
         confirmButton = {
             if (isSaving) {
-                CircularProgressIndicator(modifier = Modifier.padding(horizontal = 16.dp), color = SolarGreen, strokeWidth = 2.dp)
+                CircularProgressIndicator(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = SolarGreen,
+                    strokeWidth = 2.dp,
+                )
             } else {
                 TextButton(onClick = { onSave(fullName, phoneNumber, password, role) }) {
                     Text("Crear usuario")
