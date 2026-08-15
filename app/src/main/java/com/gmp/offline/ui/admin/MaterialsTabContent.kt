@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,12 +48,9 @@ import com.gmp.offline.data.local.entities.MaterialEntity
 import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
 
-// Pestaña "Gestión de Materiales" del admin — réplica exacta de la sección
-// "Materiales" de la web legada (index.html: tabla Nombre/Unidad/Precio +
-// botón "+ Añadir material" arriba del panel, en vez del FAB que usa la
-// pestaña de Montajes, para respetar el mismo diseño que la web tiene ahí).
 @Composable
 fun MaterialsTabContent(
+    searchQuery: String = "",
     viewModel: MaterialsViewModel = hiltViewModel(),
 ) {
     val materials by viewModel.materials.collectAsStateWithLifecycle()
@@ -63,6 +59,12 @@ fun MaterialsTabContent(
     var showForm by remember { mutableStateOf(false) }
     var editingMaterial by remember { mutableStateOf<MaterialEntity?>(null) }
     var deletingMaterial by remember { mutableStateOf<MaterialEntity?>(null) }
+
+    val normalizedQuery = searchQuery.trim()
+    val visibleMaterials = remember(materials, normalizedQuery) {
+        if (normalizedQuery.isBlank()) materials
+        else materials.filter { it.name.contains(normalizedQuery, ignoreCase = true) }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -84,13 +86,17 @@ fun MaterialsTabContent(
             }
         }
 
-        if (materials.isEmpty()) {
+        if (visibleMaterials.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    "Aún no hay materiales registrados.",
+                    if (normalizedQuery.isNotBlank()) {
+                        "No hay materiales que coincidan con \"$normalizedQuery\"."
+                    } else {
+                        "Aún no hay materiales registrados."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -101,7 +107,7 @@ fun MaterialsTabContent(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(materials, key = { it.uuid }) { material ->
+                items(visibleMaterials, key = { it.uuid }) { material ->
                     MaterialRow(
                         material = material,
                         onEdit = {
@@ -173,7 +179,7 @@ private fun MaterialRow(material: MaterialEntity, onEdit: () -> Unit, onDelete: 
                     UnitTag(material.unit)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        material.defaultPrice?.let { "$$it" } ?: "—",
+                        material.defaultPrice?.let { "$${it}" } ?: "—",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -204,8 +210,6 @@ private fun UnitTag(unit: String?) {
     }
 }
 
-// Modal de crear/editar — mismos 3 campos que `#modalOverlay` en la web:
-// Nombre, Unidad de medida (dropdown unidad/metro) y Precio (USD).
 @Composable
 private fun MaterialFormDialog(
     editing: MaterialEntity?,
