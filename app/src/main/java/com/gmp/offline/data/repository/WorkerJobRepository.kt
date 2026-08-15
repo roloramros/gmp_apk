@@ -7,6 +7,8 @@ import com.gmp.offline.data.local.entities.JobMaterialEntity
 import com.gmp.offline.data.local.entities.MaterialEntity
 import com.gmp.offline.sync.CommandQueue
 import kotlinx.coroutines.flow.Flow
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -46,6 +48,31 @@ class WorkerJobRepository @Inject constructor(
             endpointPath = "/jobs/$jobUuid/finish",
             httpMethod = "POST",
             payload = emptyMap(),
+        )
+    }
+
+    suspend fun invoiceJob(jobUuid: String, totalAmount: String) {
+        val amount = totalAmount.toBigDecimalOrNull() ?: return
+        if (amount <= BigDecimal.ZERO) return
+        val job = jobDao.getByUuid(jobUuid) ?: return
+        if (job.status != "finished") return
+
+        val now = isoNowUtc()
+        val formattedAmount = amount.setScale(2, RoundingMode.HALF_UP).toPlainString()
+        jobDao.upsertAll(
+            listOf(
+                job.copy(
+                    status = "invoiced",
+                    invoicedAt = now,
+                    totalAmount = formattedAmount,
+                    updatedAt = now,
+                ),
+            ),
+        )
+        commandQueue.enqueue(
+            endpointPath = "/jobs/$jobUuid/invoice",
+            httpMethod = "POST",
+            payload = mapOf("total_amount" to formattedAmount),
         )
     }
 
@@ -104,20 +131,34 @@ class WorkerJobRepository @Inject constructor(
         )
     }
 
-    suspend fun addCustomMaterial(jobUuid: String, name: String, unit: String, quantityToAdd: String) {
+    suspend fun addCustomMaterial(
+        jobUuid: String,
+        name: String,
+        unit: String,
+        quantityToAdd: String,
+        unitPrice: String,
+    ) {
         val cleanName = name.trim()
         val cleanUnit = unit.trim()
         val delta = quantityToAdd.toDoubleOrNull() ?: return
-        if (cleanName.isBlank() || cleanUnit.isBlank() || delta <= 0.0) return
+        val price = unitPrice.toBigDecimalOrNull() ?: return
+        if (cleanName.isBlank() || cleanUnit.isBlank() || delta <= 0.0 || price < BigDecimal.ZERO) return
 
         val encodedDescription = encodeCustomDescription(cleanName, cleanUnit)
         val existing = jobMaterialDao.findByJobAndFreeText(jobUuid, encodedDescription)
         val now = isoNowUtc()
+        val formattedPrice = price.setScale(2, RoundingMode.HALF_UP).toPlainString()
 
         if (existing != null) {
             val current = existing.quantity.toDoubleOrNull() ?: 0.0
             jobMaterialDao.upsertAll(
-                listOf(existing.copy(quantity = formatQuantity(current + delta), updatedAt = now)),
+                listOf(
+                    existing.copy(
+                        quantity = formatQuantity(current + delta),
+                        unitPrice = existing.unitPrice ?: formattedPrice,
+                        updatedAt = now,
+                    ),
+                ),
             )
             commandQueue.enqueue(
                 endpointPath = "/jobs/$jobUuid/materials",
@@ -127,7 +168,7 @@ class WorkerJobRepository @Inject constructor(
                     "material_uuid" to null,
                     "free_text_description" to encodedDescription,
                     "quantity" to formatQuantity(delta),
-                    "unit_price" to null,
+                    "unit_price" to (existing.unitPrice ?: formattedPrice),
                 ),
             )
             return
@@ -142,7 +183,7 @@ class WorkerJobRepository @Inject constructor(
                     materialUuid = null,
                     freeTextDescription = encodedDescription,
                     quantity = formatQuantity(delta),
-                    unitPrice = null,
+                    unitPrice = formattedPrice,
                     createdAt = now,
                     updatedAt = now,
                 ),
@@ -156,7 +197,7 @@ class WorkerJobRepository @Inject constructor(
                 "material_uuid" to null,
                 "free_text_description" to encodedDescription,
                 "quantity" to formatQuantity(delta),
-                "unit_price" to null,
+                "unit_price" to formattedPrice,
             ),
         )
     }
