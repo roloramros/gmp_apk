@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -35,6 +37,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -119,6 +122,30 @@ fun JobDetailScreen(
                     }
                 },
             )
+        },
+        floatingActionButton = {
+            if (viewModel.isAdmin) {
+                when (currentJob?.status) {
+                    "assigned" -> {
+                        FloatingActionButton(
+                            onClick = { viewModel.startWorkerJob() },
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = SolarGreen,
+                        ) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Iniciar trabajo")
+                        }
+                    }
+                    "in_progress" -> {
+                        FloatingActionButton(
+                            onClick = { viewModel.finishWorkerJob() },
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = SolarError,
+                        ) {
+                            Icon(Icons.Filled.Stop, contentDescription = "Finalizar trabajo")
+                        }
+                    }
+                }
+            }
         },
     ) { innerPadding ->
         if (currentJob == null) {
@@ -244,7 +271,7 @@ fun JobDetailScreen(
                 AdditionalPhotosSection(photos = photos.drop(1))
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(72.dp))
         }
     }
 
