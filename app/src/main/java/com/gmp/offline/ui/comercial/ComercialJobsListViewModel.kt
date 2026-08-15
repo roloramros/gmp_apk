@@ -55,7 +55,13 @@ class ComercialJobsListViewModel @Inject constructor(
     ) { jobs, staff, pending ->
         val staffByUuid = staff.associateBy { it.uuid }
         jobs
-            .sortedByDescending { it.updatedAt }
+            // Orden principal: fecha confirmada. Si aún no existe, usamos la
+            // fecha prevista de montaje. ISO yyyy-MM-dd / ISO datetime permite
+            // ordenar cronológicamente de forma lexicográfica.
+            .sortedWith(
+                compareByDescending<JobEntity> { it.scheduledAt ?: it.proposedDate ?: "" }
+                    .thenByDescending { it.updatedAt },
+            )
             .map { job ->
                 ComercialJobRow(
                     job = job,
