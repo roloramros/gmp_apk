@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +37,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,7 +51,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,10 +73,8 @@ import com.gmp.offline.data.local.entities.JobPhotoEntity
 import com.gmp.offline.data.local.entities.StaffEntity
 import com.gmp.offline.ui.common.jobStatusColor
 import com.gmp.offline.ui.common.jobStatusLabel
-import com.gmp.offline.ui.theme.SolarAmber
 import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
-import com.gmp.offline.ui.theme.SolarGreenDark
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -148,23 +146,19 @@ fun JobDetailScreen(
         floatingActionButton = {
             if (viewModel.isAdmin) {
                 when (currentJob?.status) {
-                    "assigned" -> {
-                        FloatingActionButton(
-                            onClick = { viewModel.startWorkerJob() },
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = SolarGreen,
-                        ) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Iniciar trabajo")
-                        }
+                    "assigned" -> FloatingActionButton(
+                        onClick = { viewModel.startWorkerJob() },
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = SolarGreen,
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = "Iniciar trabajo")
                     }
-                    "in_progress" -> {
-                        FloatingActionButton(
-                            onClick = { viewModel.finishWorkerJob() },
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = SolarError,
-                        ) {
-                            Icon(Icons.Filled.Stop, contentDescription = "Finalizar trabajo")
-                        }
+                    "in_progress" -> FloatingActionButton(
+                        onClick = { viewModel.finishWorkerJob() },
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = SolarError,
+                    ) {
+                        Icon(Icons.Filled.Stop, contentDescription = "Finalizar trabajo")
                     }
                 }
             }
@@ -199,12 +193,20 @@ fun JobDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
                             jobStatusLabel(currentJob.status),
                             color = jobStatusColor(currentJob.status),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
+                        )
+                        SmallExpandButton(
+                            expanded = showFullDetails,
+                            onClick = { showFullDetails = !showFullDetails },
                         )
                     }
 
@@ -245,20 +247,6 @@ fun JobDetailScreen(
                             ) {
                                 Text("Cancelar montaje")
                             }
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        TextButton(onClick = { showFullDetails = !showFullDetails }) {
-                            Text(
-                                if (showFullDetails) "Mostrar menos" else "Mostrar más",
-                                color = SolarGreen,
-                            )
                         }
                     }
                 }
@@ -319,7 +307,20 @@ fun JobDetailScreen(
 }
 
 @Composable
+private fun SmallExpandButton(expanded: Boolean, onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        Text(
+            if (expanded) "Mostrar menos" else "Mostrar más",
+            style = MaterialTheme.typography.labelSmall,
+            color = SolarGreen,
+        )
+    }
+}
+
+@Composable
 private fun AdminMaterialsCard(materialRows: List<Triple<String, String, String>>) {
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -327,36 +328,45 @@ private fun AdminMaterialsCard(materialRows: List<Triple<String, String, String>
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "Materiales utilizados",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            if (materialRows.isEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    "Todavía no se han agregado materiales.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    "Materiales utilizados",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
-            } else {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Text("Material", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("Cant.", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.35f))
-                    Text("Unidad", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.45f))
-                }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                materialRows.forEach { row ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 5.dp),
-                    ) {
-                        Text(row.first, modifier = Modifier.weight(1f))
-                        Text(row.second, modifier = Modifier.weight(0.35f))
-                        Text(row.third.ifBlank { "—" }, modifier = Modifier.weight(0.45f))
+                SmallExpandButton(expanded = expanded, onClick = { expanded = !expanded })
+            }
+
+            if (expanded) {
+                Spacer(Modifier.height(12.dp))
+
+                if (materialRows.isEmpty()) {
+                    Text(
+                        "Todavía no se han agregado materiales.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text("Material", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text("Cant.", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.35f))
+                        Text("Unidad", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.45f))
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    materialRows.forEach { row ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 5.dp),
+                        ) {
+                            Text(row.first, modifier = Modifier.weight(1f))
+                            Text(row.second, modifier = Modifier.weight(0.35f))
+                            Text(row.third.ifBlank { "—" }, modifier = Modifier.weight(0.45f))
+                        }
                     }
                 }
             }
@@ -374,7 +384,7 @@ private fun AssignmentCard(
 ) {
     var dateDraft by remember(scheduledDate) { mutableStateOf(scheduledDate.orEmpty()) }
     var selectedDraft by remember(assignedWorkerUuids) { mutableStateOf(assignedWorkerUuids) }
-    var showFullAssignment by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
 
     val hasChanges = dateDraft != scheduledDate.orEmpty() || selectedDraft != assignedWorkerUuids
 
@@ -385,21 +395,28 @@ private fun AssignmentCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "Asignación de personal y fecha",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Asignación de personal y fecha",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                SmallExpandButton(expanded = expanded, onClick = { expanded = !expanded })
+            }
 
-            Spacer(Modifier.height(12.dp))
+            if (expanded) {
+                Spacer(Modifier.height(12.dp))
 
-            AssignmentDateField(
-                value = dateDraft,
-                onValueChange = { dateDraft = it },
-                label = "Fecha oficial del montaje",
-            )
+                AssignmentDateField(
+                    value = dateDraft,
+                    onValueChange = { dateDraft = it },
+                    label = "Fecha oficial del montaje",
+                )
 
-            if (showFullAssignment) {
                 Spacer(Modifier.height(16.dp))
 
                 Text(
@@ -452,31 +469,17 @@ private fun AssignmentCard(
                         }
                     }
                 }
-            }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = { showFullAssignment = !showFullAssignment }) {
-                    Text(
-                        if (showFullAssignment) "Mostrar menos" else "Mostrar más",
-                        color = SolarGreen,
-                    )
+                Spacer(Modifier.height(12.dp))
+
+                Button(
+                    onClick = { onConfirm(dateDraft.ifBlank { null }, selectedDraft) },
+                    enabled = hasChanges,
+                    colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Confirmar asignación")
                 }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            Button(
-                onClick = { onConfirm(dateDraft.ifBlank { null }, selectedDraft) },
-                enabled = hasChanges,
-                colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Confirmar asignación")
             }
         }
     }
@@ -567,6 +570,7 @@ private fun PhotoSection(
     onDismissError: () -> Unit,
 ) {
     var selectedPhoto by remember { mutableStateOf<JobPhotoEntity?>(null) }
+    var expanded by remember { mutableStateOf(false) }
 
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -575,107 +579,117 @@ private fun PhotoSection(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "Fotos del montaje",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(12.dp))
-
-            if (photoState is PhotoUiState.Uploading) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    CircularProgressIndicator(color = SolarGreen, modifier = Modifier.size(24.dp))
-                    Text("Subiendo foto...", style = MaterialTheme.typography.bodyMedium)
-                }
-                Spacer(Modifier.height(10.dp))
-            }
-
-            if (photos.isEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    if (canManagePhoto) "Todavía no hay fotos del montaje." else "No hay fotos del montaje.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    "Fotos del montaje",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
-                if (canManagePhoto) {
-                    Spacer(Modifier.height(10.dp))
-                    Button(
-                        onClick = onPickPhoto,
-                        colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Agregar foto")
-                    }
-                }
-            } else {
-                photos.forEachIndexed { index, item ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable(enabled = item.uploadStatus != "error") { selectedPhoto = item }
-                            .padding(vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(SolarGreen.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text("📷", style = MaterialTheme.typography.titleMedium)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Foto ${index + 1}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            Text(
-                                when (item.uploadStatus) {
-                                    "error" -> "Error al subir"
-                                    "uploading" -> "Subiendo..."
-                                    else -> "Tocar para ver"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (item.uploadStatus == "error") SolarError else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
-                    if (index == 0 && canManagePhoto && (item.uploadStatus == "error" || canRemovePhoto)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (item.uploadStatus == "error") {
-                                Button(
-                                    onClick = onRetry,
-                                    colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
-                                ) {
-                                    Text("Reintentar")
-                                }
-                            }
-                            if (canRemovePhoto) {
-                                OutlinedButton(onClick = onRemove) {
-                                    Icon(Icons.Filled.Delete, contentDescription = null)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Quitar")
-                                }
-                            }
-                        }
-                        if (photos.size > 1) Spacer(Modifier.height(6.dp))
-                    }
-                }
+                SmallExpandButton(expanded = expanded, onClick = { expanded = !expanded })
             }
 
-            if (photoState is PhotoUiState.Error && canManagePhoto) {
-                Spacer(Modifier.height(10.dp))
-                Text(photoState.message, color = SolarError, style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = onDismissError) { Text("Cerrar") }
+            if (expanded) {
+                Spacer(Modifier.height(12.dp))
+
+                if (photoState is PhotoUiState.Uploading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator(color = SolarGreen, modifier = Modifier.size(24.dp))
+                        Text("Subiendo foto...", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+
+                if (photos.isEmpty()) {
+                    Text(
+                        if (canManagePhoto) "Todavía no hay fotos del montaje." else "No hay fotos del montaje.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (canManagePhoto) {
+                        Spacer(Modifier.height(10.dp))
+                        Button(
+                            onClick = onPickPhoto,
+                            colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Agregar foto")
+                        }
+                    }
+                } else {
+                    photos.forEachIndexed { index, item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(enabled = item.uploadStatus != "error") { selectedPhoto = item }
+                                .padding(vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(SolarGreen.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("📷", style = MaterialTheme.typography.titleMedium)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Foto ${index + 1}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Text(
+                                    when (item.uploadStatus) {
+                                        "error" -> "Error al subir"
+                                        "uploading" -> "Subiendo..."
+                                        else -> "Tocar para ver"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (item.uploadStatus == "error") SolarError else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+
+                        if (index == 0 && canManagePhoto && (item.uploadStatus == "error" || canRemovePhoto)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (item.uploadStatus == "error") {
+                                    Button(
+                                        onClick = onRetry,
+                                        colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
+                                    ) {
+                                        Text("Reintentar")
+                                    }
+                                }
+                                if (canRemovePhoto) {
+                                    OutlinedButton(onClick = onRemove) {
+                                        Icon(Icons.Filled.Delete, contentDescription = null)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Quitar")
+                                    }
+                                }
+                            }
+                            if (photos.size > 1) Spacer(Modifier.height(6.dp))
+                        }
+                    }
+                }
+
+                if (photoState is PhotoUiState.Error && canManagePhoto) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(photoState.message, color = SolarError, style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = onDismissError) { Text("Cerrar") }
+                }
             }
         }
     }
