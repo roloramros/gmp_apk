@@ -273,8 +273,6 @@ fun JobDetailScreen(
                 )
             }
 
-            Text("Fotos del montaje", style = MaterialTheme.typography.titleMedium)
-
             PhotoSection(
                 photos = photos,
                 photoState = photoState,
@@ -577,6 +575,13 @@ private fun PhotoSection(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Fotos del montaje",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(12.dp))
+
             if (photoState is PhotoUiState.Uploading) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
