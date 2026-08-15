@@ -2,6 +2,10 @@ package com.gmp.offline.ui.admin
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gmp.offline.data.local.dao.JobDao
+import com.gmp.offline.data.local.dao.JobWorkerDao
+import com.gmp.offline.data.local.entities.JobEntity
+import com.gmp.offline.data.local.entities.JobWorkerEntity
 import com.gmp.offline.data.local.entities.StaffEntity
 import com.gmp.offline.data.repository.StaffRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +30,8 @@ val STAFF_ROLES = listOf(
 @HiltViewModel
 class StaffViewModel @Inject constructor(
     private val staffRepository: StaffRepository,
+    jobDao: JobDao,
+    jobWorkerDao: JobWorkerDao,
 ) : ViewModel() {
 
     private val _isSaving = MutableStateFlow(false)
@@ -39,6 +45,16 @@ class StaffViewModel @Inject constructor(
     // administra clientes (esos no tienen login propio en este dominio).
     val staff: StateFlow<List<StaffEntity>> = staffRepository.observeStaff()
         .map { list -> list.filter { it.role != "cliente" } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Historial local offline-first. La relación job_workers es la fuente de
+    // verdad para saber en qué trabajos participó cada miembro del personal.
+    // Se exponen las tablas completas porque el filtrado por persona/rango y
+    // la resolución de compañeros son operaciones de presentación pequeñas.
+    val jobs: StateFlow<List<JobEntity>> = jobDao.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val jobWorkers: StateFlow<List<JobWorkerEntity>> = jobWorkerDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun clearError() {
