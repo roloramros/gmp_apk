@@ -131,7 +131,7 @@ class JobDetailViewModel @Inject constructor(
 
     fun addWorkerCustomMaterial(name: String, unit: String, quantity: String) {
         if (!isWorker) return
-        viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity, "0.00") }
+        viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity, null) }
     }
 
     fun addAdminMaterial(materialUuid: String, quantity: String) {
@@ -144,9 +144,9 @@ class JobDetailViewModel @Inject constructor(
         viewModelScope.launch { workerJobRepository.addCustomMaterial(jobUuid, name, unit, quantity, unitPrice) }
     }
 
-    fun updateAdminMaterialQuantity(itemUuid: String, quantity: String) {
+    fun updateAdminMaterial(itemUuid: String, quantity: String, unitPrice: String?) {
         if (!isAdmin) return
-        viewModelScope.launch { workerJobRepository.updateMaterialQuantity(jobUuid, itemUuid, quantity) }
+        viewModelScope.launch { workerJobRepository.updateMaterial(jobUuid, itemUuid, quantity, unitPrice) }
     }
 
     fun removeAdminMaterial(itemUuid: String) {
