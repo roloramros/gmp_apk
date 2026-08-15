@@ -8,7 +8,8 @@ import com.gmp.offline.data.local.entities.MaterialEntity
 import com.gmp.offline.data.local.entities.StaffEntity
 
 // Conversión directa DTO (lo que llega de /sync) -> Entity (lo que vive en
-// Room). Sin lógica de negocio acá: eso vive en los repositorios/ViewModels.
+// Room). La única normalización de presentación es el precio oficial: una vez
+// facturado, total_amount sustituye al precio cotizado anterior en la ficha.
 
 fun JobDto.toEntity(): JobEntity = JobEntity(
     uuid = uuid,
@@ -34,7 +35,7 @@ fun JobDto.toEntity(): JobEntity = JobEntity(
     longitude = longitude,
     reference = reference,
     siteNotes = siteNotes,
-    price = price,
+    price = if (invoicedAt != null && !totalAmount.isNullOrBlank()) totalAmount else price,
     paymentMethod = paymentMethod,
     visitDate = visitDate,
     proposedDate = proposedDate,
