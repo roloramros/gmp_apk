@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -16,7 +16,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -30,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gmp.offline.ui.comercial.ComercialJobsListViewModel
 import com.gmp.offline.ui.comercial.JobsListContent
+import com.gmp.offline.ui.common.GmpNavigationDrawer
 import com.gmp.offline.ui.theme.SolarAmber
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
@@ -62,106 +62,105 @@ fun AdminHomeScreen(
         searchQuery = ""
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
+    GmpNavigationDrawer(
+        fullName = jobsViewModel.currentFullName,
+        companyName = jobsViewModel.currentCompanyName,
+        onSync = { jobsViewModel.syncNow() },
+        onLogout = { jobsViewModel.logout(onLoggedOut) },
+    ) { openDrawer ->
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
                         Text("GM Pro · Administración", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            jobsViewModel.currentFullName ?: "Admin",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = openDrawer) {
+                            Icon(Icons.Filled.Menu, contentDescription = "Abrir menú", tint = SolarGreen)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            searchVisible = !searchVisible
+                            if (!searchVisible) searchQuery = ""
+                        }) {
+                            val description = when (currentTab) {
+                                AdminTab.MONTAJES -> "Buscar montaje"
+                                AdminTab.PERSONAL -> "Buscar personal"
+                                AdminTab.MATERIALES -> "Buscar material"
+                            }
+                            Icon(Icons.Filled.Search, contentDescription = description, tint = SolarGreen)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+            },
+            floatingActionButton = {
+                if (currentTab == AdminTab.MONTAJES) {
+                    FloatingActionButton(
+                        onClick = onCreateJob,
+                        containerColor = SolarAmber,
+                        contentColor = SolarGreenDark,
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = "Nuevo montaje")
+                    }
+                }
+            },
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) {
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = SolarGreen,
+                ) {
+                    AdminTab.entries.forEachIndexed { index, tab ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = {
+                                selectedTab = index
+                                closeSearch()
+                            },
+                            text = { Text(tab.label) },
                         )
                     }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        searchVisible = !searchVisible
-                        if (!searchVisible) searchQuery = ""
-                    }) {
-                        val description = when (currentTab) {
-                            AdminTab.MONTAJES -> "Buscar montaje"
-                            AdminTab.PERSONAL -> "Buscar personal"
-                            AdminTab.MATERIALES -> "Buscar material"
-                        }
-                        Icon(Icons.Filled.Search, contentDescription = description, tint = SolarGreen)
-                    }
-                    IconButton(onClick = { jobsViewModel.syncNow() }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Sincronizar ahora", tint = SolarGreen)
-                    }
-                    TextButton(onClick = { jobsViewModel.logout(onLoggedOut) }) {
-                        Text("Salir")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
-        },
-        floatingActionButton = {
-            if (currentTab == AdminTab.MONTAJES) {
-                FloatingActionButton(
-                    onClick = onCreateJob,
-                    containerColor = SolarAmber,
-                    contentColor = SolarGreenDark,
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Nuevo montaje")
                 }
-            }
-        },
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = SolarGreen,
-            ) {
-                AdminTab.entries.forEachIndexed { index, tab ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = {
-                            selectedTab = index
-                            closeSearch()
+
+                if (searchVisible && currentTab != AdminTab.MONTAJES) {
+                    AdminSearchBar(
+                        query = searchQuery,
+                        placeholder = when (currentTab) {
+                            AdminTab.PERSONAL -> "Buscar por nombre"
+                            AdminTab.MATERIALES -> "Buscar material por nombre"
+                            AdminTab.MONTAJES -> "Buscar por nombre"
                         },
-                        text = { Text(tab.label) },
+                        onQueryChange = { searchQuery = it },
+                        onClose = { closeSearch() },
                     )
                 }
-            }
 
-            if (searchVisible && currentTab != AdminTab.MONTAJES) {
-                AdminSearchBar(
-                    query = searchQuery,
-                    placeholder = when (currentTab) {
-                        AdminTab.PERSONAL -> "Buscar por nombre"
-                        AdminTab.MATERIALES -> "Buscar material por nombre"
-                        AdminTab.MONTAJES -> "Buscar por nombre"
-                    },
-                    onQueryChange = { searchQuery = it },
-                    onClose = { closeSearch() },
-                )
-            }
-
-            when (currentTab) {
-                AdminTab.MONTAJES -> JobsListContent(
-                    jobRows = jobRows,
-                    statusCounts = statusCounts,
-                    activeFilters = activeFilters,
-                    onToggle = { jobsViewModel.toggleStatusFilter(it) },
-                    onClear = { jobsViewModel.clearStatusFilters() },
-                    onOpenJob = onOpenJob,
-                    onRegularizeJob = { jobUuid, status -> jobsViewModel.regularizeJob(jobUuid, status) },
-                    searchVisible = searchVisible,
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = { searchQuery = it },
-                    onCloseSearch = { closeSearch() },
-                )
-                AdminTab.PERSONAL -> StaffTabContent(searchQuery = searchQuery)
-                AdminTab.MATERIALES -> MaterialsTabContent(searchQuery = searchQuery)
+                when (currentTab) {
+                    AdminTab.MONTAJES -> JobsListContent(
+                        jobRows = jobRows,
+                        statusCounts = statusCounts,
+                        activeFilters = activeFilters,
+                        onToggle = { jobsViewModel.toggleStatusFilter(it) },
+                        onClear = { jobsViewModel.clearStatusFilters() },
+                        onOpenJob = onOpenJob,
+                        onRegularizeJob = { jobUuid, status -> jobsViewModel.regularizeJob(jobUuid, status) },
+                        searchVisible = searchVisible,
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { searchQuery = it },
+                        onCloseSearch = { closeSearch() },
+                    )
+                    AdminTab.PERSONAL -> StaffTabContent(searchQuery = searchQuery)
+                    AdminTab.MATERIALES -> MaterialsTabContent(searchQuery = searchQuery)
+                }
             }
         }
     }
