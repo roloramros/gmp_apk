@@ -52,7 +52,6 @@ fun AdminHomeScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val currentTab = AdminTab.entries[selectedTab]
-
     val jobRows by jobsViewModel.jobRows.collectAsStateWithLifecycle()
     val statusCounts by jobsViewModel.statusCounts.collectAsStateWithLifecycle()
     val activeFilters by jobsViewModel.activeFilters.collectAsStateWithLifecycle()
@@ -75,9 +74,7 @@ fun AdminHomeScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = {
-                        Text("GM Pro · Administración", style = MaterialTheme.typography.titleMedium)
-                    },
+                    title = { Text("GM Pro · Administración", style = MaterialTheme.typography.titleMedium) },
                     navigationIcon = {
                         IconButton(onClick = openDrawer) {
                             Icon(Icons.Filled.Menu, contentDescription = "Abrir menú", tint = SolarGreen)
@@ -96,9 +93,7 @@ fun AdminHomeScreen(
                             Icon(Icons.Filled.Search, contentDescription = description, tint = SolarGreen)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
                 )
             },
             floatingActionButton = {
@@ -107,17 +102,11 @@ fun AdminHomeScreen(
                         onClick = onCreateJob,
                         containerColor = SolarAmber,
                         contentColor = SolarGreenDark,
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Nuevo montaje")
-                    }
+                    ) { Icon(Icons.Filled.Add, contentDescription = "Nuevo montaje") }
                 }
             },
         ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            ) {
+            Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -157,6 +146,7 @@ fun AdminHomeScreen(
                         onClear = { jobsViewModel.clearStatusFilters() },
                         onOpenJob = onOpenJob,
                         onRegularizeJob = { jobUuid, status -> jobsViewModel.regularizeJob(jobUuid, status) },
+                        onDeleteJob = { jobUuid -> jobsViewModel.deleteJobPermanently(jobUuid) },
                         searchVisible = searchVisible,
                         searchQuery = searchQuery,
                         onSearchQueryChange = { searchQuery = it },
