@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -85,9 +86,7 @@ fun ComercialJobsListScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = {
-                        Text("Planificación de Montajes", style = MaterialTheme.typography.titleMedium)
-                    },
+                    title = { Text("Planificación de Montajes", style = MaterialTheme.typography.titleMedium) },
                     navigationIcon = {
                         IconButton(onClick = openDrawer) {
                             Icon(Icons.Filled.Menu, contentDescription = "Abrir menú", tint = SolarGreen)
@@ -101,9 +100,7 @@ fun ComercialJobsListScreen(
                             Icon(Icons.Filled.Search, contentDescription = "Buscar montaje", tint = SolarGreen)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
                 )
             },
             floatingActionButton = {
@@ -120,6 +117,7 @@ fun ComercialJobsListScreen(
                 onClear = { viewModel.clearStatusFilters() },
                 onOpenJob = onOpenJob,
                 onRegularizeJob = { jobUuid, status -> viewModel.regularizeJob(jobUuid, status) },
+                onDeleteJob = { jobUuid -> viewModel.deleteJobPermanently(jobUuid) },
                 modifier = Modifier.padding(innerPadding),
                 searchVisible = searchVisible,
                 searchQuery = searchQuery,
@@ -142,6 +140,7 @@ fun JobsListContent(
     onClear: () -> Unit,
     onOpenJob: (String) -> Unit,
     onRegularizeJob: ((String, String) -> Unit)? = null,
+    onDeleteJob: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     emptyMessage: String = "Aún no hay montajes registrados. Tocá el + para crear el primero.",
     showDescriptionInsteadOfPrice: Boolean = false,
@@ -162,25 +161,13 @@ fun JobsListContent(
 
     Column(modifier = modifier.fillMaxSize()) {
         if (searchVisible) {
-            JobSearchBar(
-                query = searchQuery,
-                onQueryChange = onSearchQueryChange,
-                onClose = onCloseSearch,
-            )
+            JobSearchBar(query = searchQuery, onQueryChange = onSearchQueryChange, onClose = onCloseSearch)
         }
 
-        StatusFilterBar(
-            counts = statusCounts,
-            activeFilters = activeFilters,
-            onToggle = onToggle,
-            onClear = onClear,
-        )
+        StatusFilterBar(counts = statusCounts, activeFilters = activeFilters, onToggle = onToggle, onClear = onClear)
 
         if (visibleRows.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     when {
                         normalizedQuery.isNotBlank() -> "No hay montajes que coincidan con \"$normalizedQuery\"."
@@ -205,6 +192,7 @@ fun JobsListContent(
                         onRegularize = onRegularizeJob?.let { callback ->
                             { status -> callback(row.job.uuid, status) }
                         },
+                        onDelete = onDeleteJob?.let { callback -> { callback(row.job.uuid) } },
                         showDescriptionInsteadOfPrice = showDescriptionInsteadOfPrice,
                     )
                 }
@@ -214,34 +202,22 @@ fun JobsListContent(
 }
 
 @Composable
-private fun JobSearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onClose: () -> Unit,
-) {
+private fun JobSearchBar(query: String, onQueryChange: (String) -> Unit, onClose: () -> Unit) {
     Surface(
         tonalElevation = 4.dp,
         shadowElevation = 4.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
         shape = RoundedCornerShape(16.dp),
     ) {
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
             singleLine = true,
             placeholder = { Text("Buscar por nombre") },
-            leadingIcon = {
-                Icon(Icons.Filled.Search, contentDescription = null, tint = SolarGreen)
-            },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = SolarGreen) },
             trailingIcon = {
-                IconButton(onClick = {
-                    if (query.isNotEmpty()) onQueryChange("") else onClose()
-                }) {
+                IconButton(onClick = { if (query.isNotEmpty()) onQueryChange("") else onClose() }) {
                     Icon(Icons.Filled.Clear, contentDescription = if (query.isNotEmpty()) "Limpiar búsqueda" else "Cerrar búsqueda")
                 }
             },
@@ -274,11 +250,7 @@ private fun StatusFilterBar(
             )
         }
         if (activeFilters.isNotEmpty()) {
-            item {
-                TextButton(onClick = onClear) {
-                    Text("Quitar filtros ✕")
-                }
-            }
+            item { TextButton(onClick = onClear) { Text("Quitar filtros ✕") } }
         }
     }
 }
@@ -289,9 +261,11 @@ private fun JobRowCard(
     row: ComercialJobRow,
     onClick: () -> Unit,
     onRegularize: ((String) -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     showDescriptionInsteadOfPrice: Boolean = false,
 ) {
     var menuExpanded by remember(row.job.uuid) { mutableStateOf(false) }
+    var confirmDelete by remember(row.job.uuid) { mutableStateOf(false) }
 
     val dateText = when {
         !row.job.scheduledAt.isNullOrBlank() -> row.job.scheduledAt.take(10)
@@ -300,6 +274,7 @@ private fun JobRowCard(
     }
 
     val canRegularize = onRegularize != null && row.job.status in setOf("pending", "assigned")
+    val canOpenActions = canRegularize || onDelete != null
     val hasDate = !row.job.scheduledAt.isNullOrBlank() || !row.job.proposedDate.isNullOrBlank()
     val validPrice = row.job.price?.toDoubleOrNull()?.let { it > 0.0 } == true
     val regularizeTargets = buildList {
@@ -323,9 +298,7 @@ private fun JobRowCard(
                 .fillMaxWidth()
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = {
-                        if (canRegularize) menuExpanded = true
-                    },
+                    onLongClick = { if (canOpenActions) menuExpanded = true },
                 ),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -344,10 +317,7 @@ private fun JobRowCard(
                 }
 
                 Spacer(Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(
                         if (showDescriptionInsteadOfPrice) row.job.description ?: "—" else row.job.price?.let { "${'$'}$it" } ?: "—",
                         style = MaterialTheme.typography.bodyMedium,
@@ -364,52 +334,69 @@ private fun JobRowCard(
 
                 if (!row.job.address.isNullOrBlank()) {
                     Spacer(Modifier.height(2.dp))
-                    Text(
-                        row.job.address,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text(row.job.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 if (row.pendingSync) {
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        "⏳ Pendiente de sincronizar",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = SolarAmber,
-                    )
+                    Text("⏳ Pendiente de sincronizar", style = MaterialTheme.typography.labelSmall, color = SolarAmber)
                 }
             }
         }
 
-        DropdownMenu(
-            expanded = menuExpanded,
-            onDismissRequest = { menuExpanded = false },
-        ) {
+        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             Text(
-                "Marcar trabajo como…",
+                "Acciones del montaje",
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             )
-            regularizeTargets.forEach { status ->
+            if (canRegularize) {
+                regularizeTargets.forEach { status ->
+                    DropdownMenuItem(
+                        text = { Text("Marcar como ${jobStatusLabel(status)}") },
+                        onClick = {
+                            menuExpanded = false
+                            onRegularize?.invoke(status)
+                        },
+                    )
+                }
+            }
+            if (onDelete != null) {
                 DropdownMenuItem(
-                    text = { Text(jobStatusLabel(status)) },
+                    text = { Text("Eliminar") },
                     onClick = {
                         menuExpanded = false
-                        onRegularize?.invoke(status)
+                        confirmDelete = true
                     },
                 )
             }
         }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Eliminar montaje") },
+            text = {
+                Text("Se eliminará definitivamente este montaje, sus asignaciones, materiales y fotos. Esta acción no se puede deshacer.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    onDelete?.invoke()
+                }) { Text("Eliminar definitivamente") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") }
+            },
+        )
     }
 }
 
 @Composable
 private fun StatusBadge(status: String) {
     val color = jobStatusColor(status)
-    Box(
-        modifier = Modifier.background(color.copy(alpha = 0.14f), RoundedCornerShape(50)),
-    ) {
+    Box(modifier = Modifier.background(color.copy(alpha = 0.14f), RoundedCornerShape(50))) {
         Text(
             jobStatusLabel(status),
             style = MaterialTheme.typography.labelSmall,
