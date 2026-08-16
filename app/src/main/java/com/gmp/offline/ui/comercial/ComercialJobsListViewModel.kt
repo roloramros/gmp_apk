@@ -40,6 +40,7 @@ class ComercialJobsListViewModel @Inject constructor(
 ) : ViewModel() {
 
     val currentFullName: String? get() = authRepository.currentFullName
+    val currentCompanyName: String? get() = authRepository.currentCompanyName
 
     private val allRows: StateFlow<List<ComercialJobRow>> = combine(
         jobsRepository.observeJobs(),
