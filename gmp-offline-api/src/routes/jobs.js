@@ -9,6 +9,7 @@ const { uploadPhotoMiddleware } = require('../middleware/upload');
 const workerPhotoLimit = require('../middleware/workerPhotoLimit');
 const jobsController = require('../controllers/jobsController');
 const jobsActionsController = require('../controllers/jobsActionsController');
+const jobRegularizeController = require('../controllers/jobRegularizeController');
 const jobMaterialsController = require('../controllers/jobMaterialsController');
 const jobPhotosController = require('../controllers/jobPhotosController');
 
@@ -32,6 +33,11 @@ router.post('/:uuid/finish', authenticate, requireRole('admin', 'trabajador'), i
 router.post('/:uuid/invoice', authenticate, requireRole('admin'), idempotency, jobsActionsController.invoiceJob);
 router.post('/:uuid/pay', authenticate, requireRole('admin'), idempotency, jobsActionsController.payJob);
 router.post('/:uuid/cancel', authenticate, requireRole('admin', 'comercial'), idempotency, jobsActionsController.cancelJob);
+
+// Regularización histórica: admin y comercial pueden tomar un montaje aún pendiente/asignado
+// y marcarlo directamente como avanzado, usando fecha propuesta como oficial y precio inicial
+// como importe final cuando corresponda. No reproduce notificaciones del flujo normal.
+router.post('/:uuid/regularize', authenticate, requireRole('admin', 'comercial'), idempotency, jobRegularizeController.regularizeJob);
 
 // Materiales usados en el job: admin, o trabajador asignado (comercial NO puede,
 // mismo criterio que start/finish; la validación de asignación vive en el controller).
