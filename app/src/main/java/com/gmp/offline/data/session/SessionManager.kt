@@ -44,6 +44,10 @@ class SessionManager @Inject constructor(
         get() = prefs.getString(KEY_COMPANY_ID, null)
         set(value) = prefs.edit().putString(KEY_COMPANY_ID, value).apply()
 
+    var companyName: String?
+        get() = prefs.getString(KEY_COMPANY_NAME, null)
+        set(value) = prefs.edit().putString(KEY_COMPANY_NAME, value).apply()
+
     fun clear() = prefs.edit().clear().apply()
 
     private companion object {
@@ -52,5 +56,6 @@ class SessionManager @Inject constructor(
         const val KEY_ROLE = "role"
         const val KEY_FULL_NAME = "full_name"
         const val KEY_COMPANY_ID = "company_id"
+        const val KEY_COMPANY_NAME = "company_name"
     }
 }
