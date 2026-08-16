@@ -1,6 +1,10 @@
 package com.gmp.offline.data.repository
 
 import com.gmp.offline.data.local.dao.JobDao
+import com.gmp.offline.data.local.dao.JobMaterialDao
+import com.gmp.offline.data.local.dao.JobPhotoDao
+import com.gmp.offline.data.local.dao.JobWorkerDao
+import com.gmp.offline.data.local.dao.PendingOperationDao
 import com.gmp.offline.data.local.entities.JobEntity
 import com.gmp.offline.data.session.SessionManager
 import com.gmp.offline.sync.CommandQueue
@@ -14,38 +18,24 @@ import javax.inject.Inject
 
 class JobsRepository @Inject constructor(
     private val jobDao: JobDao,
+    private val jobWorkerDao: JobWorkerDao,
+    private val jobMaterialDao: JobMaterialDao,
+    private val jobPhotoDao: JobPhotoDao,
+    private val pendingOperationDao: PendingOperationDao,
     private val commandQueue: CommandQueue,
     private val sessionManager: SessionManager,
 ) {
     fun observeJobs(): Flow<List<JobEntity>> = jobDao.observeAll()
-
     fun observeJob(uuid: String): Flow<JobEntity?> = jobDao.observeByUuid(uuid)
-
     fun observeJobsByStatus(status: String): Flow<List<JobEntity>> = jobDao.observeByStatus(status)
-
     suspend fun findFirstJobByStatus(status: String): JobEntity? = jobDao.getFirstByStatus(status)
-
     suspend fun getJob(jobUuid: String): JobEntity? = jobDao.getByUuid(jobUuid)
 
     suspend fun startJob(jobUuid: String) {
         val job = jobDao.getByUuid(jobUuid) ?: return
         val nowIso = isoNowUtc()
-
-        jobDao.upsertAll(
-            listOf(
-                job.copy(
-                    status = "in_progress",
-                    startedAt = nowIso,
-                    updatedAt = nowIso,
-                ),
-            ),
-        )
-
-        commandQueue.enqueue(
-            endpointPath = "/jobs/$jobUuid/start",
-            httpMethod = "POST",
-            payload = emptyMap(),
-        )
+        jobDao.upsertAll(listOf(job.copy(status = "in_progress", startedAt = nowIso, updatedAt = nowIso)))
+        commandQueue.enqueue(endpointPath = "/jobs/$jobUuid/start", httpMethod = "POST", payload = emptyMap())
     }
 
     suspend fun createJob(
@@ -124,7 +114,6 @@ class JobsRepository @Inject constructor(
                 "proposed_date" to proposedDate,
             ),
         )
-
         return jobUuid
     }
 
@@ -147,7 +136,6 @@ class JobsRepository @Inject constructor(
     ) {
         val job = jobDao.getByUuid(jobUuid) ?: return
         val nowIso = isoNowUtc()
-
         jobDao.upsertAll(
             listOf(
                 job.copy(
@@ -170,7 +158,6 @@ class JobsRepository @Inject constructor(
                 ),
             ),
         )
-
         commandQueue.enqueue(
             endpointPath = "/jobs/$jobUuid",
             httpMethod = "PATCH",
@@ -197,49 +184,23 @@ class JobsRepository @Inject constructor(
     suspend fun cancelJob(jobUuid: String) {
         val job = jobDao.getByUuid(jobUuid) ?: return
         val nowIso = isoNowUtc()
-
-        jobDao.upsertAll(
-            listOf(
-                job.copy(
-                    status = "cancelled",
-                    cancelledAt = nowIso,
-                    updatedAt = nowIso,
-                ),
-            ),
-        )
-
-        commandQueue.enqueue(
-            endpointPath = "/jobs/$jobUuid/cancel",
-            httpMethod = "POST",
-            payload = emptyMap(),
-        )
+        jobDao.upsertAll(listOf(job.copy(status = "cancelled", cancelledAt = nowIso, updatedAt = nowIso)))
+        commandQueue.enqueue(endpointPath = "/jobs/$jobUuid/cancel", httpMethod = "POST", payload = emptyMap())
     }
 
-    /**
-     * Regularización histórica para admin/comercial.
-     * Solo se usa desde pending/assigned y NO reproduce el flujo normal paso a paso.
-     * La fecha propuesta pasa a ser oficial; para invoiced/paid el precio inicial
-     * se copia como total definitivo, y para paid también como importe pagado.
-     */
     suspend fun regularizeJob(jobUuid: String, targetStatus: String) {
         val job = jobDao.getByUuid(jobUuid) ?: return
         if (job.status !in setOf("pending", "assigned")) return
         if (targetStatus !in setOf("in_progress", "finished", "invoiced", "paid", "cancelled")) return
 
         val nowIso = isoNowUtc()
-
         val updatedJob = if (targetStatus == "cancelled") {
-            job.copy(
-                status = "cancelled",
-                cancelledAt = nowIso,
-                updatedAt = nowIso,
-            )
+            job.copy(status = "cancelled", cancelledAt = nowIso, updatedAt = nowIso)
         } else {
             val officialDate = job.scheduledAt ?: job.proposedDate ?: return
             val price = job.price?.toDoubleOrNull()
             if (targetStatus in setOf("invoiced", "paid") && (price == null || price <= 0.0)) return
             val finalPrice = job.price
-
             when (targetStatus) {
                 "in_progress" -> job.copy(
                     scheduledAt = officialDate,
@@ -284,6 +245,25 @@ class JobsRepository @Inject constructor(
             httpMethod = "POST",
             payload = mapOf("status" to targetStatus),
         )
+    }
+
+    suspend fun deleteJobPermanently(jobUuid: String) {
+        if (jobDao.getByUuid(jobUuid) == null) return
+
+        // Cualquier edición/asignación/foto/material pendiente de este montaje deja de tener sentido.
+        pendingOperationDao.deleteForJob(jobUuid)
+
+        // El DELETE se encola antes del borrado optimista local. SyncWorker siempre hace push antes de pull.
+        commandQueue.enqueue(
+            endpointPath = "/jobs/$jobUuid",
+            httpMethod = "DELETE",
+            payload = emptyMap(),
+        )
+
+        jobPhotoDao.deleteByJob(jobUuid)
+        jobMaterialDao.deleteByJob(jobUuid)
+        jobWorkerDao.deleteByJob(jobUuid)
+        jobDao.deleteByUuids(listOf(jobUuid))
     }
 
     private fun isoNowUtc(): String {
