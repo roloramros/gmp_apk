@@ -10,6 +10,7 @@ const workerPhotoLimit = require('../middleware/workerPhotoLimit');
 const jobsController = require('../controllers/jobsController');
 const jobsActionsController = require('../controllers/jobsActionsController');
 const jobRegularizeController = require('../controllers/jobRegularizeController');
+const jobDeleteController = require('../controllers/jobDeleteController');
 const jobMaterialsController = require('../controllers/jobMaterialsController');
 const jobPhotosController = require('../controllers/jobPhotosController');
 
@@ -21,11 +22,9 @@ router.get('/:uuid', authenticate, jobsController.getJob);
 // Escritura: solo admin y comercial. Requiere X-Command-Id (idempotencia).
 router.post('/', authenticate, requireRole('admin', 'comercial'), idempotency, jobsController.createJob);
 router.patch('/:uuid', authenticate, requireRole('admin', 'comercial'), idempotency, jobsController.updateJob);
+router.delete('/:uuid', authenticate, requireRole('admin', 'comercial'), idempotency, jobDeleteController.deleteJob);
 
 // Acciones de estado (outbox de comandos).
-// assign/unassign/invoice/pay: solo admin.
-// start/finish: admin o trabajador asignado (comercial NO puede).
-// cancel: admin/comercial, y solo si el job no fue iniciado (regla en el controller).
 router.post('/:uuid/assign', authenticate, requireRole('admin'), idempotency, jobsActionsController.assignWorker);
 router.post('/:uuid/unassign', authenticate, requireRole('admin'), idempotency, jobsActionsController.unassignWorker);
 router.post('/:uuid/start', authenticate, requireRole('admin', 'trabajador'), idempotency, jobsActionsController.startJob);
@@ -34,22 +33,12 @@ router.post('/:uuid/invoice', authenticate, requireRole('admin'), idempotency, j
 router.post('/:uuid/pay', authenticate, requireRole('admin'), idempotency, jobsActionsController.payJob);
 router.post('/:uuid/cancel', authenticate, requireRole('admin', 'comercial'), idempotency, jobsActionsController.cancelJob);
 
-// Regularización histórica: admin y comercial pueden tomar un montaje aún pendiente/asignado
-// y marcarlo directamente como avanzado, usando fecha propuesta como oficial y precio inicial
-// como importe final cuando corresponda. No reproduce notificaciones del flujo normal.
 router.post('/:uuid/regularize', authenticate, requireRole('admin', 'comercial'), idempotency, jobRegularizeController.regularizeJob);
 
-// Materiales usados en el job: admin, o trabajador asignado (comercial NO puede,
-// mismo criterio que start/finish; la validación de asignación vive en el controller).
 router.post('/:uuid/materials', authenticate, requireRole('admin', 'trabajador'), idempotency, jobMaterialsController.addMaterial);
-// Corrección exacta de cantidad: solo admin. Permite corregir materiales cargados
-// previamente por trabajadores sin convertir la edición en otra suma.
 router.patch('/:uuid/materials/:material_uuid', authenticate, requireRole('admin'), idempotency, jobMaterialsController.updateMaterial);
 router.delete('/:uuid/materials/:material_uuid', authenticate, requireRole('admin', 'trabajador'), idempotency, jobMaterialsController.removeMaterial);
 
-// Fotos de trabajo (multipart, campo "photo"). Comercial/admin conservan la
-// lógica existente. El trabajador asignado puede añadir hasta 3 fotos propias
-// por montaje; workerPhotoLimit refuerza ese máximo también en servidor.
 router.post(
   '/:uuid/photos',
   authenticate,
@@ -60,11 +49,6 @@ router.post(
   jobPhotosController.uploadPhoto
 );
 router.delete('/:uuid/photos/:photo_uuid', authenticate, requireRole('admin', 'comercial', 'trabajador'), idempotency, jobPhotosController.removePhoto);
-
-// Servido del archivo: lectura autenticada, sin restricción de rol a nivel ruta
-// (la visibilidad se resuelve dentro del controller: admin/comercial ven todo,
-// trabajador solo sus jobs asignados, cliente solo los suyos). No lleva
-// X-Command-Id porque es un GET, no un comando de escritura.
 router.get('/:uuid/photos/:photo_uuid/file', authenticate, jobPhotosController.servePhotoFile);
 
 module.exports = router;
