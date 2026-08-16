@@ -8,23 +8,17 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface JobPhotoDao {
-
     @Query("SELECT * FROM job_photos WHERE jobUuid = :jobUuid ORDER BY createdAt ASC")
     fun observeByJob(jobUuid: String): Flow<List<JobPhotoEntity>>
 
     @Query("SELECT * FROM job_photos WHERE jobUuid = :jobUuid ORDER BY createdAt ASC")
     suspend fun getByJob(jobUuid: String): List<JobPhotoEntity>
 
-    // Foto principal del montaje: únicamente una foto subida por admin/comercial.
-    // Así reemplazar la foto principal nunca elimina una de las 3 fotos adicionales del trabajador.
     @Query("""
         SELECT * FROM job_photos
         WHERE jobUuid = :jobUuid
-          AND uploadedByUuid IN (
-              SELECT uuid FROM staff WHERE role IN ('admin', 'comercial')
-          )
-        ORDER BY createdAt ASC
-        LIMIT 1
+          AND uploadedByUuid IN (SELECT uuid FROM staff WHERE role IN ('admin', 'comercial'))
+        ORDER BY createdAt ASC LIMIT 1
     """)
     suspend fun getFirstByJob(jobUuid: String): JobPhotoEntity?
 
@@ -36,6 +30,9 @@ interface JobPhotoDao {
 
     @Query("DELETE FROM job_photos WHERE uuid IN (:uuids)")
     suspend fun deleteByUuids(uuids: List<String>)
+
+    @Query("DELETE FROM job_photos WHERE jobUuid = :jobUuid")
+    suspend fun deleteByJob(jobUuid: String)
 
     @Query("DELETE FROM job_photos")
     suspend fun clearAll()
