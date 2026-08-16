@@ -20,7 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gmp.offline.ui.common.GmpNavigationDrawer
 import com.gmp.offline.ui.common.jobStatusColor
 import com.gmp.offline.ui.common.jobStatusLabel
 import com.gmp.offline.ui.theme.SolarAmber
@@ -71,61 +72,60 @@ fun ComercialJobsListScreen(
     var searchVisible by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
+    GmpNavigationDrawer(
+        fullName = viewModel.currentFullName,
+        companyName = viewModel.currentCompanyName,
+        onSync = { viewModel.syncNow() },
+        onLogout = { viewModel.logout(onLoggedOut) },
+    ) { openDrawer ->
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
                         Text("Planificación de Montajes", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            viewModel.currentFullName ?: "Comercial",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        searchVisible = !searchVisible
-                        if (!searchVisible) searchQuery = ""
-                    }) {
-                        Icon(Icons.Filled.Search, contentDescription = "Buscar montaje", tint = SolarGreen)
-                    }
-                    IconButton(onClick = { viewModel.syncNow() }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Sincronizar ahora", tint = SolarGreen)
-                    }
-                    TextButton(onClick = { viewModel.logout(onLoggedOut) }) {
-                        Text("Salir")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onCreateJob, containerColor = SolarAmber, contentColor = SolarGreenDark) {
-                Icon(Icons.Filled.Add, contentDescription = "Nuevo montaje")
-            }
-        },
-    ) { innerPadding ->
-        JobsListContent(
-            jobRows = jobRows,
-            statusCounts = statusCounts,
-            activeFilters = activeFilters,
-            onToggle = { viewModel.toggleStatusFilter(it) },
-            onClear = { viewModel.clearStatusFilters() },
-            onOpenJob = onOpenJob,
-            onRegularizeJob = { jobUuid, status -> viewModel.regularizeJob(jobUuid, status) },
-            modifier = Modifier.padding(innerPadding),
-            searchVisible = searchVisible,
-            searchQuery = searchQuery,
-            onSearchQueryChange = { searchQuery = it },
-            onCloseSearch = {
-                searchVisible = false
-                searchQuery = ""
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = openDrawer) {
+                            Icon(Icons.Filled.Menu, contentDescription = "Abrir menú", tint = SolarGreen)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            searchVisible = !searchVisible
+                            if (!searchVisible) searchQuery = ""
+                        }) {
+                            Icon(Icons.Filled.Search, contentDescription = "Buscar montaje", tint = SolarGreen)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
             },
-        )
+            floatingActionButton = {
+                FloatingActionButton(onClick = onCreateJob, containerColor = SolarAmber, contentColor = SolarGreenDark) {
+                    Icon(Icons.Filled.Add, contentDescription = "Nuevo montaje")
+                }
+            },
+        ) { innerPadding ->
+            JobsListContent(
+                jobRows = jobRows,
+                statusCounts = statusCounts,
+                activeFilters = activeFilters,
+                onToggle = { viewModel.toggleStatusFilter(it) },
+                onClear = { viewModel.clearStatusFilters() },
+                onOpenJob = onOpenJob,
+                onRegularizeJob = { jobUuid, status -> viewModel.regularizeJob(jobUuid, status) },
+                modifier = Modifier.padding(innerPadding),
+                searchVisible = searchVisible,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                onCloseSearch = {
+                    searchVisible = false
+                    searchQuery = ""
+                },
+            )
+        }
     }
 }
 
