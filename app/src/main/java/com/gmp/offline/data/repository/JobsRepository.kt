@@ -23,30 +23,10 @@ class JobsRepository @Inject constructor(
 
     fun observeJobsByStatus(status: String): Flow<List<JobEntity>> = jobDao.observeByStatus(status)
 
-    /** Lectura puntual, sin Flow — para botones de prueba/debug, no para UI reactiva. */
     suspend fun findFirstJobByStatus(status: String): JobEntity? = jobDao.getFirstByStatus(status)
 
-    /** Lectura puntual, sin Flow — usada para precargar el formulario de edición. */
     suspend fun getJob(jobUuid: String): JobEntity? = jobDao.getByUuid(jobUuid)
 
-    /**
-     * Ejemplo end-to-end del patrón de escritura offline-first que va a
-     * seguir el resto de las acciones (finish, pay, assign, etc.) cuando se
-     * conecten de verdad en la Fase 6:
-     *
-     * 1) Aplicar el cambio optimista en Room YA — la UI lo refleja al
-     *    toque, sin esperar red ni respuesta del servidor.
-     * 2) Encolar el comando real en el outbox (CommandQueue) para que
-     *    SyncWorker lo mande cuando haya conexión, con el mismo UUID como
-     *    X-Command-Id para que el servidor lo trate con idempotencia.
-     *
-     * Nota: el valor exacto que jobsActionsController.js asigna a `status`
-     * tras `/start` no está confirmado en este código (no tuve el archivo
-     * a la vista al escribir esto) — "in_progress" es un placeholder
-     * ilustrativo del patrón, no un valor verificado contra el backend.
-     * Cuando se conecte esta acción de verdad en Fase 6, confirmar el
-     * string exacto contra jobsActionsController.js antes de usarlo.
-     */
     suspend fun startJob(jobUuid: String) {
         val job = jobDao.getByUuid(jobUuid) ?: return
         val nowIso = isoNowUtc()
@@ -54,7 +34,7 @@ class JobsRepository @Inject constructor(
         jobDao.upsertAll(
             listOf(
                 job.copy(
-                    status = "in_progress", // TODO: confirmar contra jobsActionsController.js
+                    status = "in_progress",
                     startedAt = nowIso,
                     updatedAt = nowIso,
                 ),
@@ -68,25 +48,6 @@ class JobsRepository @Inject constructor(
         )
     }
 
-    /**
-     * Crea un job offline-first (patrón comercial, Fase 6 Paso 3 — réplica
-     * exacta de `saveJob()` de la web legada, ver `openJobCreateModal`).
-     * 1) Genera el `uuid` acá mismo (identidad definitiva del recurso, la
-     *    misma que viaja en el body de POST /jobs).
-     * 2) Inserta en Room YA, en estado "pending", para que la UI lo muestre
-     *    al toque sin esperar red.
-     * 3) Encola el comando POST /jobs con el mismo uuid en el payload, para
-     *    que el servidor cree exactamente ese registro (idempotente por
-     *    X-Command-Id, no por el uuid del job en sí).
-     *
-     * `title` no lo pide la UI de comercial (no existe en la web legada) —
-     * se usa `clientName` como título interno, para que el resto de la app
-     * (listas por rol, notificaciones futuras) tenga algo legible sin
-     * depender de un campo nuevo.
-     *
-     * Devuelve el `uuid` generado para que la UI pueda navegar al detalle
-     * del job recién creado sin esperar la respuesta del servidor.
-     */
     suspend fun createJob(
         clientName: String,
         clientCi: String?,
@@ -167,10 +128,6 @@ class JobsRepository @Inject constructor(
         return jobUuid
     }
 
-    /**
-     * Actualiza los campos editables de un job ya existente. Mismo patrón
-     * optimista + outbox que `createJob`, pero contra `PATCH /jobs/:uuid`.
-     */
     suspend fun updateJob(
         jobUuid: String,
         clientName: String,
@@ -237,12 +194,6 @@ class JobsRepository @Inject constructor(
         )
     }
 
-    /**
-     * Cancela un job (rol comercial/admin, ver jobsActionsController.js).
-     * Solo válido desde "pending"/"assigned" del lado del servidor — acá se
-     * aplica el cambio optimista igual, y si el servidor rechaza (409) la
-     * corrección real llega en el próximo `/sync` (última escritura gana).
-     */
     suspend fun cancelJob(jobUuid: String) {
         val job = jobDao.getByUuid(jobUuid) ?: return
         val nowIso = isoNowUtc()
@@ -261,6 +212,77 @@ class JobsRepository @Inject constructor(
             endpointPath = "/jobs/$jobUuid/cancel",
             httpMethod = "POST",
             payload = emptyMap(),
+        )
+    }
+
+    /**
+     * Regularización histórica para admin/comercial.
+     * Solo se usa desde pending/assigned y NO reproduce el flujo normal paso a paso.
+     * La fecha propuesta pasa a ser oficial; para invoiced/paid el precio inicial
+     * se copia como total definitivo, y para paid también como importe pagado.
+     */
+    suspend fun regularizeJob(jobUuid: String, targetStatus: String) {
+        val job = jobDao.getByUuid(jobUuid) ?: return
+        if (job.status !in setOf("pending", "assigned")) return
+        if (targetStatus !in setOf("in_progress", "finished", "invoiced", "paid", "cancelled")) return
+
+        val nowIso = isoNowUtc()
+
+        val updatedJob = if (targetStatus == "cancelled") {
+            job.copy(
+                status = "cancelled",
+                cancelledAt = nowIso,
+                updatedAt = nowIso,
+            )
+        } else {
+            val officialDate = job.scheduledAt ?: job.proposedDate ?: return
+            val price = job.price?.toDoubleOrNull()
+            if (targetStatus in setOf("invoiced", "paid") && (price == null || price <= 0.0)) return
+            val finalPrice = job.price
+
+            when (targetStatus) {
+                "in_progress" -> job.copy(
+                    scheduledAt = officialDate,
+                    status = "in_progress",
+                    startedAt = job.startedAt ?: officialDate,
+                    updatedAt = nowIso,
+                )
+                "finished" -> job.copy(
+                    scheduledAt = officialDate,
+                    status = "finished",
+                    startedAt = job.startedAt ?: officialDate,
+                    finishedAt = job.finishedAt ?: officialDate,
+                    updatedAt = nowIso,
+                )
+                "invoiced" -> job.copy(
+                    scheduledAt = officialDate,
+                    status = "invoiced",
+                    startedAt = job.startedAt ?: officialDate,
+                    finishedAt = job.finishedAt ?: officialDate,
+                    invoicedAt = job.invoicedAt ?: officialDate,
+                    totalAmount = finalPrice,
+                    amountPaid = "0",
+                    updatedAt = nowIso,
+                )
+                "paid" -> job.copy(
+                    scheduledAt = officialDate,
+                    status = "paid",
+                    startedAt = job.startedAt ?: officialDate,
+                    finishedAt = job.finishedAt ?: officialDate,
+                    invoicedAt = job.invoicedAt ?: officialDate,
+                    totalAmount = finalPrice,
+                    amountPaid = finalPrice ?: "0",
+                    updatedAt = nowIso,
+                )
+                else -> return
+            }
+        }
+
+        jobDao.upsertAll(listOf(updatedJob))
+        commandQueue.enqueue(
+            endpointPath = "/jobs/$jobUuid/regularize",
+            httpMethod = "POST",
+            payload = mapOf("status" to targetStatus),
         )
     }
 
