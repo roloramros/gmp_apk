@@ -27,6 +27,9 @@ interface JobMaterialDao {
     @Query("DELETE FROM job_materials WHERE uuid IN (:uuids)")
     suspend fun deleteByUuids(uuids: List<String>)
 
+    @Query("DELETE FROM job_materials WHERE jobUuid = :jobUuid")
+    suspend fun deleteByJob(jobUuid: String)
+
     @Query("DELETE FROM job_materials")
     suspend fun clearAll()
 }
