@@ -19,18 +19,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// Fila de la lista: el job tal como está en Room + su nombre de cliente
-// resuelto (join en memoria contra `staff`, ya que Room no tiene una vista
-// unida para esto) + si tiene algún comando pendiente en el outbox.
 data class ComercialJobRow(
     val job: JobEntity,
     val clientName: String?,
     val pendingSync: Boolean,
 )
 
-// Mismo orden de estados que STATUS_LABELS en la web legada, para que la
-// barra de filtros se vea igual (chips en el mismo orden, con el conteo
-// de jobs en cada uno).
 val JOB_STATUS_ORDER = listOf(
     "pending", "assigned", "in_progress", "finished",
     "invoiced", "partially_paid", "paid", "cancelled",
@@ -40,14 +34,13 @@ val JOB_STATUS_ORDER = listOf(
 class ComercialJobsListViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val syncScheduler: SyncScheduler,
-    jobsRepository: JobsRepository,
+    private val jobsRepository: JobsRepository,
     staffRepository: StaffRepository,
     outboxRepository: OutboxRepository,
 ) : ViewModel() {
 
     val currentFullName: String? get() = authRepository.currentFullName
 
-    // Todos los jobs (sin filtrar), ya con el nombre de cliente resuelto.
     private val allRows: StateFlow<List<ComercialJobRow>> = combine(
         jobsRepository.observeJobs(),
         staffRepository.observeStaff(),
@@ -55,9 +48,6 @@ class ComercialJobsListViewModel @Inject constructor(
     ) { jobs, staff, pending ->
         val staffByUuid = staff.associateBy { it.uuid }
         jobs
-            // Orden principal: fecha confirmada. Si aún no existe, usamos la
-            // fecha prevista de montaje. ISO yyyy-MM-dd / ISO datetime permite
-            // ordenar cronológicamente de forma lexicográfica.
             .sortedWith(
                 compareByDescending<JobEntity> { it.scheduledAt ?: it.proposedDate ?: "" }
                     .thenByDescending { it.updatedAt },
@@ -68,11 +58,6 @@ class ComercialJobsListViewModel @Inject constructor(
                     clientName = job.clientName ?: job.clientUuid?.let { staffByUuid[it]?.fullName },
                     pendingSync = pending.any { operation ->
                         if (operation.status != "pending") return@any false
-
-                        // La mayoría de operaciones de un job llevan su UUID en la URL
-                        // (/jobs/{uuid}/..., PATCH /jobs/{uuid}, etc.). El alta offline es
-                        // la excepción: POST /jobs usa una ruta sin UUID y lo manda en el
-                        // body. En ese caso también debemos asociar la operación a la tarjeta.
                         operation.endpointPath.contains(job.uuid) ||
                             (operation.endpointPath == "/jobs" &&
                                 operation.httpMethod == "POST" &&
@@ -82,13 +67,9 @@ class ComercialJobsListViewModel @Inject constructor(
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // Filtro de estados activo (multi-selección, igual que `activeStatusFilters`
-    // en la web: un Set de status; vacío = sin filtro = se ven todos).
     private val _activeFilters = MutableStateFlow<Set<String>>(emptySet())
     val activeFilters: StateFlow<Set<String>> = _activeFilters.asStateFlow()
 
-    // Conteo de jobs por status, para mostrar el número en cada chip del
-    // filtro (igual que `counts` en `renderStatusFilterBar` de la web).
     val statusCounts: StateFlow<Map<String, Int>> = allRows
         .map { rows -> JOB_STATUS_ORDER.associateWith { status -> rows.count { it.job.status == status } } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
@@ -107,6 +88,13 @@ class ComercialJobsListViewModel @Inject constructor(
 
     fun clearStatusFilters() {
         _activeFilters.value = emptySet()
+    }
+
+    fun regularizeJob(jobUuid: String, targetStatus: String) {
+        viewModelScope.launch {
+            jobsRepository.regularizeJob(jobUuid, targetStatus)
+            syncScheduler.triggerImmediateSync()
+        }
     }
 
     fun syncNow() {
