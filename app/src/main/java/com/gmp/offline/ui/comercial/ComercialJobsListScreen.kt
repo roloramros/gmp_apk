@@ -1,6 +1,8 @@
 package com.gmp.offline.ui.comercial
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +24,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -112,6 +116,7 @@ fun ComercialJobsListScreen(
             onToggle = { viewModel.toggleStatusFilter(it) },
             onClear = { viewModel.clearStatusFilters() },
             onOpenJob = onOpenJob,
+            onRegularizeJob = { jobUuid, status -> viewModel.regularizeJob(jobUuid, status) },
             modifier = Modifier.padding(innerPadding),
             searchVisible = searchVisible,
             searchQuery = searchQuery,
@@ -132,6 +137,7 @@ fun JobsListContent(
     onToggle: (String) -> Unit,
     onClear: () -> Unit,
     onOpenJob: (String) -> Unit,
+    onRegularizeJob: ((String, String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     emptyMessage: String = "Aún no hay montajes registrados. Tocá el + para crear el primero.",
     showDescriptionInsteadOfPrice: Boolean = false,
@@ -192,6 +198,9 @@ fun JobsListContent(
                     JobRowCard(
                         row = row,
                         onClick = { onOpenJob(row.job.uuid) },
+                        onRegularize = onRegularizeJob?.let { callback ->
+                            { status -> callback(row.job.uuid, status) }
+                        },
                         showDescriptionInsteadOfPrice = showDescriptionInsteadOfPrice,
                     )
                 }
@@ -270,74 +279,121 @@ private fun StatusFilterBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun JobRowCard(
     row: ComercialJobRow,
     onClick: () -> Unit,
+    onRegularize: ((String) -> Unit)? = null,
     showDescriptionInsteadOfPrice: Boolean = false,
 ) {
+    var menuExpanded by remember(row.job.uuid) { mutableStateOf(false) }
+
     val dateText = when {
         !row.job.scheduledAt.isNullOrBlank() -> row.job.scheduledAt.take(10)
         !row.job.proposedDate.isNullOrBlank() -> "${row.job.proposedDate.take(10)} (propuesta)"
         else -> "sin fecha"
     }
 
-    Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    row.clientName ?: row.job.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-                StatusBadge(status = row.job.status)
+    val canRegularize = onRegularize != null && row.job.status in setOf("pending", "assigned")
+    val hasDate = !row.job.scheduledAt.isNullOrBlank() || !row.job.proposedDate.isNullOrBlank()
+    val validPrice = row.job.price?.toDoubleOrNull()?.let { it > 0.0 } == true
+    val regularizeTargets = buildList {
+        if (hasDate) {
+            add("in_progress")
+            add("finished")
+            if (validPrice) {
+                add("invoiced")
+                add("paid")
             }
+        }
+        add("cancelled")
+    }
 
-            Spacer(Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    if (showDescriptionInsteadOfPrice) row.job.description ?: "—" else row.job.price?.let { "${'$'}$it" } ?: "—",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    dateText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 12.dp),
-                )
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = {
+                        if (canRegularize) menuExpanded = true
+                    },
+                ),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        row.clientName ?: row.job.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatusBadge(status = row.job.status)
+                }
+
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        if (showDescriptionInsteadOfPrice) row.job.description ?: "—" else row.job.price?.let { "${'$'}$it" } ?: "—",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        dateText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 12.dp),
+                    )
+                }
+
+                if (!row.job.address.isNullOrBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        row.job.address,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (row.pendingSync) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "⏳ Pendiente de sincronizar",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = SolarAmber,
+                    )
+                }
             }
+        }
 
-            if (!row.job.address.isNullOrBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    row.job.address,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            if (row.pendingSync) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "⏳ Pendiente de sincronizar",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = SolarAmber,
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
+        ) {
+            Text(
+                "Marcar trabajo como…",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+            regularizeTargets.forEach { status ->
+                DropdownMenuItem(
+                    text = { Text(jobStatusLabel(status)) },
+                    onClick = {
+                        menuExpanded = false
+                        onRegularize?.invoke(status)
+                    },
                 )
             }
         }
