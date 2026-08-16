@@ -276,6 +276,12 @@ private fun JobRowCard(
     onClick: () -> Unit,
     showDescriptionInsteadOfPrice: Boolean = false,
 ) {
+    val dateText = when {
+        !row.job.scheduledAt.isNullOrBlank() -> row.job.scheduledAt.take(10)
+        !row.job.proposedDate.isNullOrBlank() -> "${row.job.proposedDate.take(10)} (propuesta)"
+        else -> "sin fecha"
+    }
+
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
@@ -310,7 +316,7 @@ private fun JobRowCard(
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    row.job.scheduledAt?.take(10) ?: "sin fecha",
+                    dateText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 12.dp),
