@@ -64,6 +64,8 @@ fun ComercialJobsListScreen(
     onLoggedOut: () -> Unit,
     onCreateJob: () -> Unit,
     onOpenJob: (String) -> Unit,
+    onOpenMpptCalculator: () -> Unit,
+    onOpenConsumptionCalculator: () -> Unit,
     viewModel: ComercialJobsListViewModel = hiltViewModel(),
 ) {
     val jobRows by viewModel.jobRows.collectAsStateWithLifecycle()
@@ -76,6 +78,8 @@ fun ComercialJobsListScreen(
         fullName = viewModel.currentFullName,
         companyName = viewModel.currentCompanyName,
         onSync = { viewModel.syncNow() },
+        onOpenMpptCalculator = onOpenMpptCalculator,
+        onOpenConsumptionCalculator = onOpenConsumptionCalculator,
         onLogout = { viewModel.logout(onLoggedOut) },
     ) { openDrawer ->
         Scaffold(
