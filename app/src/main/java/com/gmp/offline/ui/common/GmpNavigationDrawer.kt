@@ -29,6 +29,8 @@ fun GmpNavigationDrawer(
     fullName: String?,
     companyName: String?,
     onSync: () -> Unit,
+    onOpenMpptCalculator: () -> Unit,
+    onOpenConsumptionCalculator: () -> Unit,
     onLogout: () -> Unit,
     content: @Composable (onOpenDrawer: () -> Unit) -> Unit,
 ) {
@@ -74,6 +76,26 @@ fun GmpNavigationDrawer(
                         },
                         icon = {
                             Icon(Icons.Filled.Refresh, contentDescription = null)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Calculadora Dimensionado MPPT") },
+                        selected = false,
+                        onClick = {
+                            closeDrawer()
+                            onOpenMpptCalculator()
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Calculadora de Consumo") },
+                        selected = false,
+                        onClick = {
+                            closeDrawer()
+                            onOpenConsumptionCalculator()
                         },
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
