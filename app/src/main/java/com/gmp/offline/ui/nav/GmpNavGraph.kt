@@ -10,6 +10,7 @@ import androidx.navigation.navArgument
 import com.gmp.offline.data.repository.AuthRepository
 import com.gmp.offline.ui.HomeScreen
 import com.gmp.offline.ui.admin.AdminHomeScreen
+import com.gmp.offline.ui.calculators.CalculatorPlaceholderScreen
 import com.gmp.offline.ui.comercial.ComercialJobsListScreen
 import com.gmp.offline.ui.comercial.JobDetailScreen
 import com.gmp.offline.ui.comercial.JobFormScreen
@@ -22,6 +23,8 @@ object GmpRoutes {
     const val HOME = "home"
     const val JOB_FORM = "job_form?jobUuid={jobUuid}"
     const val JOB_DETAIL = "job_detail/{jobUuid}"
+    const val CALCULATOR_MPPT = "calculator_mppt"
+    const val CALCULATOR_CONSUMPTION = "calculator_consumption"
 
     fun jobForm(jobUuid: String? = null): String =
         if (jobUuid != null) "job_form?jobUuid=$jobUuid" else "job_form"
@@ -35,6 +38,9 @@ fun GmpNavGraph(
     navController: NavHostController = rememberNavController(),
 ) {
     val startDestination = if (authRepository.isLoggedIn) GmpRoutes.HOME else GmpRoutes.LOGIN
+
+    val openMpptCalculator = { navController.navigate(GmpRoutes.CALCULATOR_MPPT) }
+    val openConsumptionCalculator = { navController.navigate(GmpRoutes.CALCULATOR_CONSUMPTION) }
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable(GmpRoutes.LOGIN) {
@@ -56,6 +62,8 @@ fun GmpNavGraph(
                     },
                     onCreateJob = { navController.navigate(GmpRoutes.jobForm()) },
                     onOpenJob = { jobUuid -> navController.navigate(GmpRoutes.jobDetail(jobUuid)) },
+                    onOpenMpptCalculator = openMpptCalculator,
+                    onOpenConsumptionCalculator = openConsumptionCalculator,
                 )
                 "admin" -> AdminHomeScreen(
                     onLoggedOut = {
@@ -65,6 +73,8 @@ fun GmpNavGraph(
                     },
                     onCreateJob = { navController.navigate(GmpRoutes.jobForm()) },
                     onOpenJob = { jobUuid -> navController.navigate(GmpRoutes.jobDetail(jobUuid)) },
+                    onOpenMpptCalculator = openMpptCalculator,
+                    onOpenConsumptionCalculator = openConsumptionCalculator,
                 )
                 "trabajador" -> WorkerHomeScreen(
                     onLoggedOut = {
@@ -73,6 +83,8 @@ fun GmpNavGraph(
                         }
                     },
                     onOpenJob = { jobUuid -> navController.navigate(GmpRoutes.jobDetail(jobUuid)) },
+                    onOpenMpptCalculator = openMpptCalculator,
+                    onOpenConsumptionCalculator = openConsumptionCalculator,
                 )
                 else -> HomeScreen(
                     onLoggedOut = {
@@ -116,6 +128,18 @@ fun GmpNavGraph(
                     onEditJob = { jobUuid -> navController.navigate(GmpRoutes.jobForm(jobUuid)) },
                 )
             }
+        }
+        composable(GmpRoutes.CALCULATOR_MPPT) {
+            CalculatorPlaceholderScreen(
+                title = "Calculadora Dimensionado MPPT",
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(GmpRoutes.CALCULATOR_CONSUMPTION) {
+            CalculatorPlaceholderScreen(
+                title = "Calculadora de Consumo",
+                onBack = { navController.popBackStack() },
+            )
         }
     }
 }
