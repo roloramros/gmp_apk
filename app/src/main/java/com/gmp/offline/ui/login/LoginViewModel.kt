@@ -51,10 +51,6 @@ class LoginViewModel @Inject constructor(
             _uiState.value = LoginUiState.LoadingCompanies
             Log.d(TAG, "loadCompanies: arrancando GET /companies")
             try {
-                // withTimeout fuerza a que esto SIEMPRE termine (éxito o error)
-                // en vez de quedar colgado sin dar ninguna señal si la llamada
-                // nunca completa (visto en pruebas reales: sin esto, el estado
-                // se quedaba en LoadingCompanies para siempre, sin error visible).
                 val result = withTimeout(COMPANIES_TIMEOUT_MS) {
                     authRepository.listCompanies()
                 }
@@ -67,10 +63,6 @@ class LoginViewModel @Inject constructor(
                     "No se pudo cargar la lista de empresas: se agotó el tiempo de espera (${COMPANIES_TIMEOUT_MS / 1000}s). Revisá la conexión."
                 )
             } catch (e: Exception) {
-                // No bloqueamos el login por esto: si falla, el usuario puede
-                // reintentar con el botón de recarga; el listado es solo
-                // conveniencia, no es estrictamente necesario para loguearse
-                // si en algún momento se agrega un campo manual de fallback.
                 Log.e(TAG, "loadCompanies: ERROR ${e.javaClass.simpleName}: ${e.message}", e)
                 _uiState.value = LoginUiState.Error(
                     "No se pudo cargar la lista de empresas: ${e.javaClass.simpleName}: ${e.message}"
@@ -89,12 +81,11 @@ class LoginViewModel @Inject constructor(
             _uiState.value = LoginUiState.Error("Completá teléfono y contraseña.")
             return
         }
+        val companyName = _companies.value.firstOrNull { it.id == companyId }?.name
         viewModelScope.launch {
             _uiState.value = LoginUiState.LoggingIn
             try {
-                authRepository.login(companyIdInt, phone, password)
-                // Full dump inicial + arranque del sync periódico, igual que
-                // hacía DebugViewModel.loginAndSync en Fase 4/5.
+                authRepository.login(companyIdInt, phone, password, companyName)
                 syncEngine.pull(forceFullResync = true)
                 syncScheduler.schedulePeriodic()
                 _uiState.value = LoginUiState.Success
