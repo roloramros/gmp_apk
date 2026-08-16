@@ -154,6 +154,7 @@ fun AdminHomeScreen(
                     onToggle = { jobsViewModel.toggleStatusFilter(it) },
                     onClear = { jobsViewModel.clearStatusFilters() },
                     onOpenJob = onOpenJob,
+                    onRegularizeJob = { jobUuid, status -> jobsViewModel.regularizeJob(jobUuid, status) },
                     searchVisible = searchVisible,
                     searchQuery = searchQuery,
                     onSearchQueryChange = { searchQuery = it },
