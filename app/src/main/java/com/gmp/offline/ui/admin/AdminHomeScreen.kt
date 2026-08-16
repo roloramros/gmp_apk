@@ -46,6 +46,8 @@ fun AdminHomeScreen(
     onLoggedOut: () -> Unit,
     onCreateJob: () -> Unit,
     onOpenJob: (String) -> Unit,
+    onOpenMpptCalculator: () -> Unit,
+    onOpenConsumptionCalculator: () -> Unit,
     jobsViewModel: ComercialJobsListViewModel = hiltViewModel(),
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -66,6 +68,8 @@ fun AdminHomeScreen(
         fullName = jobsViewModel.currentFullName,
         companyName = jobsViewModel.currentCompanyName,
         onSync = { jobsViewModel.syncNow() },
+        onOpenMpptCalculator = onOpenMpptCalculator,
+        onOpenConsumptionCalculator = onOpenConsumptionCalculator,
         onLogout = { jobsViewModel.logout(onLoggedOut) },
     ) { openDrawer ->
         Scaffold(
