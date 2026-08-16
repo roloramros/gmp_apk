@@ -84,7 +84,7 @@ object BillingPdfGenerator {
         val document = PdfDocument()
         val catalogByUuid = catalog.associateBy { it.uuid }
 
-        val companyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(38, 38, 38)
             textSize = 21f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -155,10 +155,10 @@ object BillingPdfGenerator {
         }
 
         fun drawHeader() {
-            canvas.drawText("Grupo Ricali", MARGIN, y + 18f, companyPaint)
+            canvas.drawText("Factura de servicio", MARGIN, y + 18f, titlePaint)
             y += 34f
             val serviceTitle = job.title.trim().takeIf { it.isNotBlank() } ?: "Montaje"
-            canvas.drawText("Factura de servicio · $serviceTitle", MARGIN, y, subtitlePaint)
+            canvas.drawText(serviceTitle, MARGIN, y, subtitlePaint)
             y += 18f
             canvas.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, dividerPaint)
             y += 24f
@@ -234,7 +234,7 @@ object BillingPdfGenerator {
         canvas.drawText("Total a Pagar:", MARGIN, y, totalLabelPaint)
         canvas.drawText("$" + formatMoney(total), PAGE_WIDTH - 105f, y, totalValuePaint)
 
-        canvas.drawText("Gracias por confiar en Grupo Ricali.", MARGIN, PAGE_HEIGHT - 34f, footerPaint)
+        canvas.drawText("Gracias por su confianza.", MARGIN, PAGE_HEIGHT - 34f, footerPaint)
 
         document.finishPage(page)
         return document
