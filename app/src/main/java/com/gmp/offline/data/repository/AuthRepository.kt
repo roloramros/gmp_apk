@@ -17,7 +17,7 @@ class AuthRepository @Inject constructor(
     private val database: GmpDatabase,
     private val deviceTokenRepository: DeviceTokenRepository,
 ) {
-    suspend fun login(companyId: Int, phone: String, password: String) {
+    suspend fun login(companyId: Int, phone: String, password: String, companyName: String? = null) {
         val response = apiService.login(LoginRequest(companyId, phone, password))
 
         wipeLocalData()
@@ -27,6 +27,7 @@ class AuthRepository @Inject constructor(
         sessionManager.role = response.user.role
         sessionManager.fullName = response.user.fullName
         sessionManager.companyId = response.user.companyId
+        sessionManager.companyName = companyName
 
         // El registro es best-effort: DeviceTokenRepository captura sus propios
         // errores para que una falla de FCM no convierta un login válido en error.
@@ -43,6 +44,9 @@ class AuthRepository @Inject constructor(
 
     val currentFullName: String?
         get() = sessionManager.fullName
+
+    val currentCompanyName: String?
+        get() = sessionManager.companyName
 
     suspend fun logout() {
         // El DELETE necesita todavía el JWT. Si no hay red, se ignora y el
