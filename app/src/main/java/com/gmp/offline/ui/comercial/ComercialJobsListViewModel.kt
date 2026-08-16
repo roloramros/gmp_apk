@@ -98,6 +98,13 @@ class ComercialJobsListViewModel @Inject constructor(
         }
     }
 
+    fun deleteJobPermanently(jobUuid: String) {
+        viewModelScope.launch {
+            jobsRepository.deleteJobPermanently(jobUuid)
+            syncScheduler.triggerImmediateSync()
+        }
+    }
+
     fun syncNow() {
         syncScheduler.triggerImmediateSync()
     }
