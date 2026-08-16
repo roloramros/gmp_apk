@@ -29,6 +29,8 @@ import com.gmp.offline.ui.theme.SolarGreen
 fun WorkerHomeScreen(
     onLoggedOut: () -> Unit,
     onOpenJob: (String) -> Unit,
+    onOpenMpptCalculator: () -> Unit,
+    onOpenConsumptionCalculator: () -> Unit,
     viewModel: WorkerJobsViewModel = hiltViewModel(),
 ) {
     val jobRows by viewModel.jobRows.collectAsStateWithLifecycle()
@@ -41,6 +43,8 @@ fun WorkerHomeScreen(
         fullName = viewModel.currentFullName,
         companyName = viewModel.currentCompanyName,
         onSync = { viewModel.syncNow() },
+        onOpenMpptCalculator = onOpenMpptCalculator,
+        onOpenConsumptionCalculator = onOpenConsumptionCalculator,
         onLogout = { viewModel.logout(onLoggedOut) },
     ) { openDrawer ->
         Scaffold(
