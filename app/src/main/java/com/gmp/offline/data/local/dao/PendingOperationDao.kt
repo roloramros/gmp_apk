@@ -6,8 +6,6 @@ import androidx.room.Query
 import com.gmp.offline.data.local.entities.PendingOperationEntity
 import kotlinx.coroutines.flow.Flow
 
-// No usado activamente todavía (ver nota en PendingOperationEntity). Queda
-// definido para que la Fase 5 (outbox + SyncWorker) lo consuma directamente.
 @Dao
 interface PendingOperationDao {
 
@@ -25,4 +23,7 @@ interface PendingOperationDao {
 
     @Query("DELETE FROM pending_operations WHERE commandId = :commandId")
     suspend fun delete(commandId: String)
+
+    @Query("DELETE FROM pending_operations WHERE endpointPath LIKE '%' || :jobUuid || '%' OR payloadJson LIKE '%' || :jobUuid || '%'")
+    suspend fun deleteForJob(jobUuid: String)
 }
