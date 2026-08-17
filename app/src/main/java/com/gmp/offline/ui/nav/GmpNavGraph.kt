@@ -15,6 +15,7 @@ import com.gmp.offline.ui.comercial.ComercialJobsListScreen
 import com.gmp.offline.ui.comercial.JobDetailScreen
 import com.gmp.offline.ui.comercial.JobFormScreen
 import com.gmp.offline.ui.login.LoginScreen
+import com.gmp.offline.ui.mppt.MpptCalculatorScreen
 import com.gmp.offline.ui.worker.WorkerHomeScreen
 import com.gmp.offline.ui.worker.WorkerJobDetailScreen
 
@@ -130,8 +131,7 @@ fun GmpNavGraph(
             }
         }
         composable(GmpRoutes.CALCULATOR_MPPT) {
-            CalculatorPlaceholderScreen(
-                title = "Calculadora Dimensionado MPPT",
+            MpptCalculatorScreen(
                 onBack = { navController.popBackStack() },
             )
         }
