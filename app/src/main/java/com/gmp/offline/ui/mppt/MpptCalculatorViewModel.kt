@@ -85,10 +85,7 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
     fun calculate() {
         val state = _uiState.value
         if (!state.allFieldsCompleted) {
-            _uiState.value = state.copy(
-                errorMessage = "Completá todos los campos antes de calcular.",
-                result = null,
-            )
+            showError("Completá todos los campos antes de calcular.")
             return
         }
 
@@ -120,51 +117,53 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
                 tempMax,
             ).any { it == null }
         ) {
-            _uiState.value = state.copy(
-                errorMessage = "Revisá los valores ingresados: todos deben ser números válidos.",
-                result = null,
-            )
+            showError("Revisá los valores ingresados: todos deben ser números válidos.")
             return
         }
 
-        if (voc!! <= 0.0 || isc!! <= 0.0 || vmp!! <= 0.0 || imp!! <= 0.0 ||
-            pmax!! <= 0.0 || vMinMppt!! <= 0.0 || vMaxMppt!! <= 0.0 ||
-            iMaxMppt!! <= 0.0 || pNomMppt!! <= 0.0
+        val vocValue = voc!!
+        val iscValue = isc!!
+        val vmpValue = vmp!!
+        val impValue = imp!!
+        val pmaxValue = pmax!!
+        val betaVocValue = betaVoc!!
+        val vMinMpptValue = vMinMppt!!
+        val vMaxMpptValue = vMaxMppt!!
+        val iMaxMpptValue = iMaxMppt!!
+        val pNomMpptValue = pNomMppt!!
+        val tempMinValue = tempMin!!
+        val tempMaxValue = tempMax!!
+
+        if (vocValue <= 0.0 || iscValue <= 0.0 || vmpValue <= 0.0 || impValue <= 0.0 ||
+            pmaxValue <= 0.0 || vMinMpptValue <= 0.0 || vMaxMpptValue <= 0.0 ||
+            iMaxMpptValue <= 0.0 || pNomMpptValue <= 0.0
         ) {
-            _uiState.value = state.copy(
-                errorMessage = "Los valores eléctricos y de potencia deben ser mayores que cero.",
-                result = null,
-            )
+            showError("Los valores eléctricos y de potencia deben ser mayores que cero.")
             return
         }
 
-        val vocCorregido = voc * (1 + (betaVoc!! / 100) * (tempMin!! - 25))
-        val vmpCorregido = vmp * (1 + (betaVoc / 100) * (tempMax!! - 25))
+        val vocCorregido = vocValue * (1 + (betaVocValue / 100) * (tempMinValue - 25))
+        val vmpCorregido = vmpValue * (1 + (betaVocValue / 100) * (tempMaxValue - 25))
 
         if (vocCorregido <= 0.0 || vmpCorregido <= 0.0) {
-            _uiState.value = state.copy(
-                errorMessage = "Las condiciones ingresadas producen un voltaje corregido no válido.",
-                result = null,
-            )
+            showError("Las condiciones ingresadas producen un voltaje corregido no válido.")
             return
         }
 
-        val nMax = floor(vMaxMppt / vocCorregido).toInt()
-        val nMin = ceil(vMinMppt / vmpCorregido).toInt()
-        val stringsMax = floor(iMaxMppt / isc).toInt()
+        val nMax = floor(vMaxMpptValue / vocCorregido).toInt()
+        val nMin = ceil(vMinMpptValue / vmpCorregido).toInt()
+        val stringsMax = floor(iMaxMpptValue / iscValue).toInt()
 
         if (nMax < nMin) {
-            _uiState.value = state.copy(
-                errorMessage = "El rango de voltaje del MPPT no permite ninguna cantidad de paneles en serie válida con estos datos (el mínimo requerido supera al máximo permitido).",
-                result = null,
+            showError(
+                "El rango de voltaje del MPPT no permite ninguna cantidad de paneles en serie válida con estos datos (el mínimo requerido supera al máximo permitido).",
             )
             return
         }
 
         if (stringsMax < 1) {
-            _uiState.value = state.copy(
-                errorMessage = "La corriente Isc del panel supera la corriente máxima admitida por el MPPT: ni un solo string es viable.",
-                result = null,
+            showError(
+                "La corriente Isc del panel supera la corriente máxima admitida por el MPPT: ni un solo string es viable.",
             )
             return
         }
@@ -172,8 +171,8 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
         val combinations = buildList {
             for (n in nMin..nMax) {
                 for (s in 1..stringsMax) {
-                    val power = n * s * pmax
-                    val ratio = power / pNomMppt
+                    val power = n * s * pmaxValue
+                    val ratio = power / pNomMpptValue
                     val type = when {
                         ratio < 1.10 -> MpptSizingType.SUBDIMENSIONADO
                         ratio <= 1.30 -> MpptSizingType.SANO
@@ -193,10 +192,7 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
         }
 
         if (combinations.isEmpty()) {
-            _uiState.value = state.copy(
-                errorMessage = "No se encontraron combinaciones válidas con los datos ingresados.",
-                result = null,
-            )
+            showError("No se encontraron combinaciones válidas con los datos ingresados.")
             return
         }
 
@@ -222,6 +218,13 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
     private fun update(transform: MpptCalculatorUiState.() -> MpptCalculatorUiState) {
         _uiState.value = _uiState.value.transform().copy(
             errorMessage = null,
+            result = null,
+        )
+    }
+
+    private fun showError(message: String) {
+        _uiState.value = _uiState.value.copy(
+            errorMessage = message,
             result = null,
         )
     }
