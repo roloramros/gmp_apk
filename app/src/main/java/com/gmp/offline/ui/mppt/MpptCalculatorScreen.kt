@@ -2,6 +2,7 @@ package com.gmp.offline.ui.mppt
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -141,7 +142,7 @@ fun MpptCalculatorScreen(
 @Composable
 private fun InputSection(
     title: String,
-    content: @Composable Column.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -363,4 +364,4 @@ private fun ResultFootnote(result: MpptCalculationResult) {
 private fun stringLabel(strings: Int): String = if (strings == 1) "string" else "strings"
 
 private fun formatNumber(value: Double, decimals: Int): String =
-    String.format(Locale.US, ".${decimals}f", value)
+    String.format(Locale.US, "%.${decimals}f", value)
