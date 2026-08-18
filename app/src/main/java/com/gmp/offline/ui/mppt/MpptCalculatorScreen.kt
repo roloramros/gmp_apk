@@ -32,6 +32,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,6 +50,7 @@ import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
 import java.util.Locale
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +59,7 @@ fun MpptCalculatorScreen(
     viewModel: MpptCalculatorViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var availablePanels by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -105,7 +110,10 @@ fun MpptCalculatorScreen(
             }
 
             Button(
-                onClick = viewModel::calculate,
+                onClick = {
+                    availablePanels = ""
+                    viewModel.calculate()
+                },
                 enabled = state.allFieldsCompleted,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -129,9 +137,38 @@ fun MpptCalculatorScreen(
             }
 
             state.result?.let { result ->
-                RecommendedCard(result = result)
-                CombinationsTable(result = result)
-                ResultFootnote(result = result)
+                val filteredResult = filterResultByPanelCount(result, availablePanels)
+                RecommendedCard(
+                    result = filteredResult ?: result,
+                    availablePanels = availablePanels,
+                    onAvailablePanelsChange = { value ->
+                        if (value.all { it.isDigit() }) availablePanels = value
+                    },
+                    noMatchingCombination = availablePanels.isNotBlank() && filteredResult == null,
+                )
+
+                if (availablePanels.isNotBlank() && filteredResult == null) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = SolarAmber.copy(alpha = 0.14f),
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "No existe ninguna combinación eléctricamente válida que utilice exactamente $availablePanels paneles con estos datos de panel y MPPT.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SolarGreenDark,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
+                } else {
+                    val visibleResult = filteredResult ?: result
+                    CombinationsTable(result = visibleResult)
+                    ResultFootnote(
+                        result = visibleResult,
+                        availablePanels = availablePanels.toIntOrNull(),
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -182,7 +219,12 @@ private fun CalculatorField(
 }
 
 @Composable
-private fun RecommendedCard(result: MpptCalculationResult) {
+private fun RecommendedCard(
+    result: MpptCalculationResult,
+    availablePanels: String,
+    onAvailablePanelsChange: (String) -> Unit,
+    noMatchingCombination: Boolean,
+) {
     val recommended = result.recommended
     val healthy = recommended.type == MpptSizingType.SANO
     val accent = when (recommended.type) {
@@ -203,24 +245,45 @@ private fun RecommendedCard(result: MpptCalculationResult) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "Configuración recomendada",
+                text = if (availablePanels.isBlank()) "Configuración recomendada" else "Configuración recomendada para tus paneles",
                 style = MaterialTheme.typography.titleMedium,
                 color = SolarGreenDark,
                 fontWeight = FontWeight.Bold,
             )
-            Text(
-                text = "${recommended.seriesPanels} paneles en serie × ${recommended.strings} ${stringLabel(recommended.strings)}",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            RatioBadge(type = recommended.type, ratio = recommended.ratio)
-            if (!result.hasHealthyOption) {
+
+            if (!noMatchingCombination) {
                 Text(
-                    text = "No hay ninguna opción con ratio saludable disponible para esta combinación de panel + MPPT.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = "${recommended.seriesPanels} paneles en serie × ${recommended.strings} ${stringLabel(recommended.strings)}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
                 )
+                RatioBadge(type = recommended.type, ratio = recommended.ratio)
+                if (!result.hasHealthyOption) {
+                    Text(
+                        text = "No hay ninguna opción con ratio saludable disponible para esta combinación de panel + MPPT.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
+
+            Divider(modifier = Modifier.padding(vertical = 4.dp))
+            Text(
+                text = "¿Cuántos paneles tienes?",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            OutlinedTextField(
+                value = availablePanels,
+                onValueChange = onAvailablePanelsChange,
+                label = { Text("Cantidad de paneles disponibles") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                supportingText = {
+                    Text("Al indicar una cantidad, se mostrarán solo las configuraciones que utilicen exactamente ese total de paneles.")
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -348,16 +411,51 @@ private fun LegendRow(type: MpptSizingType, text: String) {
 }
 
 @Composable
-private fun ResultFootnote(result: MpptCalculationResult) {
+private fun ResultFootnote(
+    result: MpptCalculationResult,
+    availablePanels: Int?,
+) {
+    val panelFilterText = availablePanels?.let {
+        " Se filtraron las configuraciones para utilizar exactamente $it paneles."
+    }.orEmpty()
+
     Text(
         text = if (result.hasHealthyOption) {
-            "Se priorizó la combinación más cercana a un ratio DC/AC de 1.20 dentro del rango sano (1.10–1.30)."
+            "Se priorizó la combinación más cercana a un ratio DC/AC de 1.20 dentro del rango sano (1.10–1.30).$panelFilterText"
         } else {
-            "Ninguna combinación cae en el rango sano (1.10–1.30); se muestra como recomendada la opción disponible más cercana a un ratio DC/AC de 1.20."
+            "Ninguna combinación cae en el rango sano (1.10–1.30); se muestra como recomendada la opción disponible más cercana a un ratio DC/AC de 1.20.$panelFilterText"
         },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 4.dp),
+    )
+}
+
+private fun filterResultByPanelCount(
+    result: MpptCalculationResult,
+    availablePanels: String,
+): MpptCalculationResult? {
+    if (availablePanels.isBlank()) return result
+    val panelCount = availablePanels.toIntOrNull() ?: return null
+    if (panelCount <= 0) return null
+
+    val filtered = result.combinations.filter { combination ->
+        combination.seriesPanels * combination.strings == panelCount
+    }
+    if (filtered.isEmpty()) return null
+
+    val healthy = filtered.filter { it.type == MpptSizingType.SANO }
+    val recommended = healthy.ifEmpty { filtered }.minBy { abs(it.ratio - 1.20) }
+    val sorted = filtered.sortedWith(
+        compareBy<MpptCombination> { abs(it.ratio - 1.20) }
+            .thenBy { it.seriesPanels }
+            .thenBy { it.strings },
+    )
+
+    return MpptCalculationResult(
+        recommended = recommended,
+        combinations = sorted,
+        hasHealthyOption = healthy.isNotEmpty(),
     )
 }
 
