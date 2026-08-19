@@ -5,7 +5,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import javax.inject.Inject
@@ -13,7 +12,6 @@ import javax.inject.Inject
 enum class MpptSizingType {
     SUBDIMENSIONADO,
     SANO,
-    SOBREDIMENSIONADO,
 }
 
 data class MpptCombination(
@@ -36,13 +34,10 @@ data class MpptCalculatorUiState(
     val vmp: String = "",
     val imp: String = "",
     val pmax: String = "",
-    val betaVoc: String = "",
     val vMinMppt: String = "",
     val vMaxMppt: String = "",
     val iMaxMppt: String = "",
     val pNomMppt: String = "",
-    val tempMin: String = "",
-    val tempMax: String = "",
     val errorMessage: String? = null,
     val result: MpptCalculationResult? = null,
 ) {
@@ -53,13 +48,10 @@ data class MpptCalculatorUiState(
             vmp,
             imp,
             pmax,
-            betaVoc,
             vMinMppt,
             vMaxMppt,
             iMaxMppt,
             pNomMppt,
-            tempMin,
-            tempMax,
         ).all { it.isNotBlank() }
 }
 
@@ -74,13 +66,10 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
     fun updateVmp(value: String) = update { copy(vmp = value) }
     fun updateImp(value: String) = update { copy(imp = value) }
     fun updatePmax(value: String) = update { copy(pmax = value) }
-    fun updateBetaVoc(value: String) = update { copy(betaVoc = value) }
     fun updateVMinMppt(value: String) = update { copy(vMinMppt = value) }
     fun updateVMaxMppt(value: String) = update { copy(vMaxMppt = value) }
     fun updateIMaxMppt(value: String) = update { copy(iMaxMppt = value) }
     fun updatePNomMppt(value: String) = update { copy(pNomMppt = value) }
-    fun updateTempMin(value: String) = update { copy(tempMin = value) }
-    fun updateTempMax(value: String) = update { copy(tempMax = value) }
 
     fun calculate() {
         val state = _uiState.value
@@ -94,13 +83,10 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
         val vmp = state.vmp.toDoubleOrNull()
         val imp = state.imp.toDoubleOrNull()
         val pmax = state.pmax.toDoubleOrNull()
-        val betaVoc = state.betaVoc.toDoubleOrNull()
         val vMinMppt = state.vMinMppt.toDoubleOrNull()
         val vMaxMppt = state.vMaxMppt.toDoubleOrNull()
         val iMaxMppt = state.iMaxMppt.toDoubleOrNull()
         val pNomMppt = state.pNomMppt.toDoubleOrNull()
-        val tempMin = state.tempMin.toDoubleOrNull()
-        val tempMax = state.tempMax.toDoubleOrNull()
 
         if (listOf(
                 voc,
@@ -108,13 +94,10 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
                 vmp,
                 imp,
                 pmax,
-                betaVoc,
                 vMinMppt,
                 vMaxMppt,
                 iMaxMppt,
                 pNomMppt,
-                tempMin,
-                tempMax,
             ).any { it == null }
         ) {
             showError("Revisá los valores ingresados: todos deben ser números válidos.")
@@ -126,13 +109,10 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
         val vmpValue = vmp!!
         val impValue = imp!!
         val pmaxValue = pmax!!
-        val betaVocValue = betaVoc!!
         val vMinMpptValue = vMinMppt!!
         val vMaxMpptValue = vMaxMppt!!
         val iMaxMpptValue = iMaxMppt!!
         val pNomMpptValue = pNomMppt!!
-        val tempMinValue = tempMin!!
-        val tempMaxValue = tempMax!!
 
         if (vocValue <= 0.0 || iscValue <= 0.0 || vmpValue <= 0.0 || impValue <= 0.0 ||
             pmaxValue <= 0.0 || vMinMpptValue <= 0.0 || vMaxMpptValue <= 0.0 ||
@@ -142,11 +122,11 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
             return
         }
 
-        val vocCorregido = vocValue * (1 + (betaVocValue / 100) * (tempMinValue - 25))
-        val vmpCorregido = vmpValue * (1 + (betaVocValue / 100) * (tempMaxValue - 25))
+        val vocCorregido = vocValue * (1 + (DEFAULT_BETA_VOC_PERCENT / 100) * (DEFAULT_MIN_TEMP_C - 25))
+        val vmpCorregido = vmpValue * (1 + (DEFAULT_BETA_VOC_PERCENT / 100) * (DEFAULT_MAX_TEMP_C - 25))
 
         if (vocCorregido <= 0.0 || vmpCorregido <= 0.0) {
-            showError("Las condiciones ingresadas producen un voltaje corregido no válido.")
+            showError("Las condiciones térmicas de diseño producen un voltaje corregido no válido.")
             return
         }
 
@@ -172,12 +152,15 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
             for (n in nMin..nMax) {
                 for (s in 1..stringsMax) {
                     val power = n * s * pmaxValue
+                    if (power > pNomMpptValue) continue
+
                     val ratio = power / pNomMpptValue
-                    val type = when {
-                        ratio < 1.10 -> MpptSizingType.SUBDIMENSIONADO
-                        ratio <= 1.30 -> MpptSizingType.SANO
-                        else -> MpptSizingType.SOBREDIMENSIONADO
+                    val type = if (ratio < 0.90) {
+                        MpptSizingType.SUBDIMENSIONADO
+                    } else {
+                        MpptSizingType.SANO
                     }
+
                     add(
                         MpptCombination(
                             seriesPanels = n,
@@ -192,15 +175,13 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
         }
 
         if (combinations.isEmpty()) {
-            showError("No se encontraron combinaciones válidas con los datos ingresados.")
+            showError("Ninguna combinación de paneles en serie/paralelo cabe dentro de la potencia máxima del MPPT con estos datos.")
             return
         }
 
-        val healthy = combinations.filter { it.type == MpptSizingType.SANO }
-        val recommendedPool = healthy.ifEmpty { combinations }
-        val recommended = recommendedPool.minBy { abs(it.ratio - 1.20) }
+        val recommended = combinations.maxBy { it.ratio }
         val sorted = combinations.sortedWith(
-            compareBy<MpptCombination> { abs(it.ratio - 1.20) }
+            compareByDescending<MpptCombination> { it.ratio }
                 .thenBy { it.seriesPanels }
                 .thenBy { it.strings },
         )
@@ -210,7 +191,7 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
             result = MpptCalculationResult(
                 recommended = recommended,
                 combinations = sorted,
-                hasHealthyOption = healthy.isNotEmpty(),
+                hasHealthyOption = true,
             ),
         )
     }
@@ -227,5 +208,11 @@ class MpptCalculatorViewModel @Inject constructor() : ViewModel() {
             errorMessage = message,
             result = null,
         )
+    }
+
+    private companion object {
+        const val DEFAULT_MIN_TEMP_C = 15.0
+        const val DEFAULT_MAX_TEMP_C = 40.0
+        const val DEFAULT_BETA_VOC_PERCENT = -0.26
     }
 }
