@@ -19,6 +19,8 @@ const jobsRoutes = require('./routes/jobs');
 app.use('/jobs', jobsRoutes);
 const syncRoutes = require('./routes/sync');
 app.use('/sync', syncRoutes);
+const notesRoutes = require('./routes/notes');
+app.use('/notes', notesRoutes);
 const deviceTokensRoutes = require('./routes/deviceTokens');
 app.use('/device-tokens', deviceTokensRoutes);
 
