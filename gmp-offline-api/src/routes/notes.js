@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { upsertNote, deleteNote } = require('../controllers/notesController');
+const { listNotes, upsertNote, deleteNote } = require('../controllers/notesController');
 
+router.get('/', auth, listNotes);
 router.put('/:uuid', auth, upsertNote);
 router.delete('/:uuid', auth, deleteNote);
 
