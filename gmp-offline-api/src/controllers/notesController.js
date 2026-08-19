@@ -1,5 +1,21 @@
 const pool = require('../db/pool');
 
+async function listNotes(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT uuid, type, title, body, items, created_at, updated_at
+       FROM notes
+       WHERE company_id = $1 AND user_id = $2 AND deleted_at IS NULL
+       ORDER BY updated_at DESC, id DESC`,
+      [req.user.company_id, req.user.user_id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (err) {
+    console.error('[notes] list error', err);
+    return res.status(500).json({ error_code: 'internal_error', message: 'No se pudieron cargar los apuntes.' });
+  }
+}
+
 async function upsertNote(req, res) {
   const { uuid } = req.params;
   const { type, title = '', body = '', items = [] } = req.body || {};
@@ -31,13 +47,11 @@ async function upsertNote(req, res) {
 
 async function deleteNote(req, res) {
   try {
-    const result = await pool.query(
+    await pool.query(
       `UPDATE notes SET deleted_at = NOW(), updated_at = NOW()
-       WHERE uuid = $1 AND company_id = $2 AND user_id = $3 AND deleted_at IS NULL
-       RETURNING uuid`,
+       WHERE uuid = $1 AND company_id = $2 AND user_id = $3 AND deleted_at IS NULL`,
       [req.params.uuid, req.user.company_id, req.user.user_id]
     );
-    if (!result.rows.length) return res.status(404).json({ error_code: 'not_found', message: 'Apunte no encontrado.' });
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error('[notes] delete error', err);
@@ -45,4 +59,4 @@ async function deleteNote(req, res) {
   }
 }
 
-module.exports = { upsertNote, deleteNote };
+module.exports = { listNotes, upsertNote, deleteNote };
