@@ -35,25 +35,109 @@ object GmpRoutes {
 fun GmpNavGraph(authRepository: AuthRepository, navController: NavHostController = rememberNavController()) {
     val startDestination = if (authRepository.isLoggedIn) GmpRoutes.HOME else GmpRoutes.LOGIN
     val openNotes = { navController.navigate(GmpRoutes.NOTES) }
-    val openMppt = { navController.navigate(GmpRoutes.CALCULATOR_MPPT) }; val openConsumption = { navController.navigate(GmpRoutes.CALCULATOR_CONSUMPTION) }
+    val openMppt = { navController.navigate(GmpRoutes.CALCULATOR_MPPT) }
+    val openConsumption = { navController.navigate(GmpRoutes.CALCULATOR_CONSUMPTION) }
     val logout = { navController.navigate(GmpRoutes.LOGIN) { popUpTo(GmpRoutes.HOME) { inclusive = true } } }
-    NavHost(navController, startDestination) {
-        composable(GmpRoutes.LOGIN) { LoginScreen { navController.navigate(GmpRoutes.HOME) { popUpTo(GmpRoutes.LOGIN) { inclusive = true } } } }
+
+    NavHost(navController = navController, startDestination = startDestination) {
+        composable(GmpRoutes.LOGIN) {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate(GmpRoutes.HOME) {
+                        popUpTo(GmpRoutes.LOGIN) { inclusive = true }
+                    }
+                },
+            )
+        }
+
         composable(GmpRoutes.HOME) {
             when (authRepository.currentRole) {
-                "comercial" -> ComercialJobsListScreen(logout, { navController.navigate(GmpRoutes.jobForm()) }, { navController.navigate(GmpRoutes.jobDetail(it)) }, openNotes, openMppt, openConsumption)
-                "admin" -> AdminHomeScreen(logout, { navController.navigate(GmpRoutes.jobForm()) }, { navController.navigate(GmpRoutes.jobDetail(it)) }, openNotes, openMppt, openConsumption)
-                "trabajador" -> WorkerHomeScreen(logout, { navController.navigate(GmpRoutes.jobDetail(it)) }, openNotes, openMppt, openConsumption)
-                else -> HomeScreen(logout)
+                "comercial" -> ComercialJobsListScreen(
+                    onLoggedOut = logout,
+                    onCreateJob = { navController.navigate(GmpRoutes.jobForm()) },
+                    onOpenJob = { navController.navigate(GmpRoutes.jobDetail(it)) },
+                    onOpenNotes = openNotes,
+                    onOpenMpptCalculator = openMppt,
+                    onOpenConsumptionCalculator = openConsumption,
+                )
+                "admin" -> AdminHomeScreen(
+                    onLoggedOut = logout,
+                    onCreateJob = { navController.navigate(GmpRoutes.jobForm()) },
+                    onOpenJob = { navController.navigate(GmpRoutes.jobDetail(it)) },
+                    onOpenNotes = openNotes,
+                    onOpenMpptCalculator = openMppt,
+                    onOpenConsumptionCalculator = openConsumption,
+                )
+                "trabajador" -> WorkerHomeScreen(
+                    onLoggedOut = logout,
+                    onOpenJob = { navController.navigate(GmpRoutes.jobDetail(it)) },
+                    onOpenNotes = openNotes,
+                    onOpenMpptCalculator = openMppt,
+                    onOpenConsumptionCalculator = openConsumption,
+                )
+                else -> HomeScreen(onLoggedOut = logout)
             }
         }
-        composable(GmpRoutes.JOB_FORM, arguments = listOf(navArgument("jobUuid") { type = NavType.StringType; nullable = true; defaultValue = null })) { JobFormScreen({ navController.popBackStack() }) { uuid -> navController.navigate(GmpRoutes.jobDetail(uuid)) { popUpTo(GmpRoutes.JOB_FORM) { inclusive = true } } } }
-        composable(GmpRoutes.JOB_DETAIL, arguments = listOf(navArgument("jobUuid") { type = NavType.StringType })) { if (authRepository.currentRole == "trabajador") WorkerJobDetailScreen { navController.popBackStack() } else JobDetailScreen({ navController.popBackStack() }) { navController.navigate(GmpRoutes.jobForm(it)) } }
-        composable(GmpRoutes.NOTES) { NotesListScreen({ navController.popBackStack() }, { navController.navigate(GmpRoutes.noteEditor()) }, { navController.navigate(GmpRoutes.noteEditor(it)) }) }
-        composable(GmpRoutes.NOTE_EDITOR, arguments = listOf(navArgument("noteUuid") { type = NavType.StringType; nullable = true; defaultValue = null })) { entry -> NoteEditorScreen(entry.arguments?.getString("noteUuid"), { navController.popBackStack() }, { navController.popBackStack() }) }
+
+        composable(
+            route = GmpRoutes.JOB_FORM,
+            arguments = listOf(navArgument("jobUuid") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            }),
+        ) {
+            JobFormScreen(
+                onBack = { navController.popBackStack() },
+                onSaved = { uuid ->
+                    navController.navigate(GmpRoutes.jobDetail(uuid)) {
+                        popUpTo(GmpRoutes.JOB_FORM) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(
+            route = GmpRoutes.JOB_DETAIL,
+            arguments = listOf(navArgument("jobUuid") { type = NavType.StringType }),
+        ) {
+            if (authRepository.currentRole == "trabajador") {
+                WorkerJobDetailScreen(onBack = { navController.popBackStack() })
+            } else {
+                JobDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onEditJob = { navController.navigate(GmpRoutes.jobForm(it)) },
+                )
+            }
+        }
+
+        composable(GmpRoutes.NOTES) {
+            NotesListScreen(
+                onBack = { navController.popBackStack() },
+                onCreate = { navController.navigate(GmpRoutes.noteEditor()) },
+                onOpen = { navController.navigate(GmpRoutes.noteEditor(it)) },
+            )
+        }
+
+        composable(
+            route = GmpRoutes.NOTE_EDITOR,
+            arguments = listOf(navArgument("noteUuid") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            }),
+        ) { entry ->
+            NoteEditorScreen(
+                noteUuid = entry.arguments?.getString("noteUuid"),
+                onBack = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() },
+            )
+        }
+
         composable(GmpRoutes.CALCULATOR_MPPT) {
             MpptCalculatorScreen(onBack = { navController.popBackStack() })
         }
+
         composable(GmpRoutes.CALCULATOR_CONSUMPTION) {
             CalculatorPlaceholderScreen(
                 title = "Calculadora de Consumo",
