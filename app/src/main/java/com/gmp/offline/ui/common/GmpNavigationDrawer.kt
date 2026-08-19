@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerValue
@@ -29,6 +30,7 @@ fun GmpNavigationDrawer(
     fullName: String?,
     companyName: String?,
     onSync: () -> Unit,
+    onOpenNotes: () -> Unit,
     onOpenMpptCalculator: () -> Unit,
     onOpenConsumptionCalculator: () -> Unit,
     onLogout: () -> Unit,
@@ -37,93 +39,45 @@ fun GmpNavigationDrawer(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    fun closeDrawer() {
-        scope.launch { drawerState.close() }
-    }
+    fun closeDrawer() { scope.launch { drawerState.close() } }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = true,
         drawerContent = {
             ModalDrawerSheet {
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth()
-                        .padding(vertical = 20.dp),
-                ) {
+                Column(modifier = Modifier.fillMaxHeight().fillMaxWidth().padding(vertical = 20.dp)) {
                     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                        Text(
-                            text = "GM PRO",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = companyName ?: "Empresa",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text("GM PRO", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(companyName ?: "Empresa", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-
                     Divider(modifier = Modifier.padding(vertical = 16.dp))
-
                     NavigationDrawerItem(
-                        label = { Text("Sincronizar") },
-                        selected = false,
-                        onClick = {
-                            closeDrawer()
-                            onSync()
-                        },
-                        icon = {
-                            Icon(Icons.Filled.Refresh, contentDescription = null)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
+                        label = { Text("Sincronizar") }, selected = false,
+                        onClick = { closeDrawer(); onSync() },
+                        icon = { Icon(Icons.Filled.Refresh, null) }, modifier = Modifier.padding(horizontal = 12.dp),
                     )
-
                     NavigationDrawerItem(
-                        label = { Text("Calculadora Dimensionado MPPT") },
-                        selected = false,
-                        onClick = {
-                            closeDrawer()
-                            onOpenMpptCalculator()
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
+                        label = { Text("Mis apuntes") }, selected = false,
+                        onClick = { closeDrawer(); onOpenNotes() },
+                        icon = { Icon(Icons.Filled.EditNote, null) }, modifier = Modifier.padding(horizontal = 12.dp),
                     )
-
                     NavigationDrawerItem(
-                        label = { Text("Calculadora de Consumo") },
-                        selected = false,
-                        onClick = {
-                            closeDrawer()
-                            onOpenConsumptionCalculator()
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
+                        label = { Text("Calculadora Dimensionado MPPT") }, selected = false,
+                        onClick = { closeDrawer(); onOpenMpptCalculator() }, modifier = Modifier.padding(horizontal = 12.dp),
                     )
-
+                    NavigationDrawerItem(
+                        label = { Text("Calculadora de Consumo") }, selected = false,
+                        onClick = { closeDrawer(); onOpenConsumptionCalculator() }, modifier = Modifier.padding(horizontal = 12.dp),
+                    )
                     Spacer(modifier = Modifier.weight(1f))
                     Divider(modifier = Modifier.padding(bottom = 12.dp))
-
                     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                        Text(
-                            text = fullName ?: "Usuario",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        TextButton(
-                            onClick = {
-                                closeDrawer()
-                                onLogout()
-                            },
-                        ) {
-                            Text("Cerrar sesión")
-                        }
+                        Text(fullName ?: "Usuario", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = { closeDrawer(); onLogout() }) { Text("Cerrar sesión") }
                     }
                 }
             }
         },
-    ) {
-        content {
-            scope.launch { drawerState.open() }
-        }
-    }
+    ) { content { scope.launch { drawerState.open() } } }
 }
