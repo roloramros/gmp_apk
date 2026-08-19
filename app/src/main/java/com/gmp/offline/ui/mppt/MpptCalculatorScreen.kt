@@ -50,7 +50,6 @@ import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
 import java.util.Locale
-import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,19 +93,13 @@ fun MpptCalculatorScreen(
                 CalculatorField("Vmp", state.vmp, "V", viewModel::updateVmp)
                 CalculatorField("Imp", state.imp, "A", viewModel::updateImp)
                 CalculatorField("Pmax", state.pmax, "W", viewModel::updatePmax)
-                CalculatorField("Coeficiente β Voc", state.betaVoc, "%/°C", viewModel::updateBetaVoc)
             }
 
             InputSection(title = "Datos del MPPT / inversor") {
                 CalculatorField("V mín. de trabajo", state.vMinMppt, "V", viewModel::updateVMinMppt)
                 CalculatorField("V máx. de entrada", state.vMaxMppt, "V", viewModel::updateVMaxMppt)
                 CalculatorField("I máx. por MPPT", state.iMaxMppt, "A", viewModel::updateIMaxMppt)
-                CalculatorField("P nominal por MPPT", state.pNomMppt, "W", viewModel::updatePNomMppt)
-            }
-
-            InputSection(title = "Condiciones del sitio") {
-                CalculatorField("Temp. mínima esperada", state.tempMin, "°C", viewModel::updateTempMin)
-                CalculatorField("Temp. máxima esperada", state.tempMax, "°C", viewModel::updateTempMax)
+                CalculatorField("Potencia máxima del arreglo (MPPT)", state.pNomMppt, "W", viewModel::updatePNomMppt)
             }
 
             Button(
@@ -165,7 +158,6 @@ fun MpptCalculatorScreen(
                     val visibleResult = filteredResult ?: result
                     CombinationsTable(result = visibleResult)
                     ResultFootnote(
-                        result = visibleResult,
                         availablePanels = availablePanels.toIntOrNull(),
                     )
                 }
@@ -230,7 +222,6 @@ private fun RecommendedCard(
     val accent = when (recommended.type) {
         MpptSizingType.SANO -> SolarGreen
         MpptSizingType.SUBDIMENSIONADO -> SolarAmberDeep
-        MpptSizingType.SOBREDIMENSIONADO -> SolarError
     }
 
     Card(
@@ -258,13 +249,6 @@ private fun RecommendedCard(
                     fontWeight = FontWeight.Bold,
                 )
                 RatioBadge(type = recommended.type, ratio = recommended.ratio)
-                if (!result.hasHealthyOption) {
-                    Text(
-                        text = "No hay ninguna opción con ratio saludable disponible para esta combinación de panel + MPPT.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
 
             Divider(modifier = Modifier.padding(vertical = 4.dp))
@@ -309,7 +293,7 @@ private fun CombinationsTable(result: MpptCalculationResult) {
             ) {
                 Text("Configuración", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1.5f))
                 Text("Potencia", fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(0.8f))
-                Text("DC/AC", fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(0.8f))
+                Text("Uso", fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(0.8f))
             }
             Divider()
 
@@ -351,9 +335,8 @@ private fun CombinationsTable(result: MpptCalculationResult) {
             }
 
             Spacer(Modifier.height(12.dp))
-            LegendRow(type = MpptSizingType.SUBDIMENSIONADO, text = "< 1.10 · Subdimensionado")
-            LegendRow(type = MpptSizingType.SANO, text = "1.10–1.30 · Sano")
-            LegendRow(type = MpptSizingType.SOBREDIMENSIONADO, text = "> 1.30 · Sobredimensionado")
+            LegendRow(type = MpptSizingType.SUBDIMENSIONADO, text = "< 0.90 · Subdimensionado")
+            LegendRow(type = MpptSizingType.SANO, text = "0.90–1.00 · Sano")
         }
     }
 }
@@ -367,16 +350,14 @@ private fun RatioBadge(
     val background = when (type) {
         MpptSizingType.SANO -> SolarGreen
         MpptSizingType.SUBDIMENSIONADO -> SolarAmber
-        MpptSizingType.SOBREDIMENSIONADO -> SolarError
     }
     val foreground = when (type) {
         MpptSizingType.SUBDIMENSIONADO -> SolarGreenDark
-        else -> Color.White
+        MpptSizingType.SANO -> Color.White
     }
     val typeText = when (type) {
         MpptSizingType.SANO -> "SANO"
         MpptSizingType.SUBDIMENSIONADO -> "SUBDIMENSIONADO"
-        MpptSizingType.SOBREDIMENSIONADO -> "SOBREDIMENSIONADO"
     }
     val label = if (compact) formatNumber(ratio, 2) else "$typeText · ${formatNumber(ratio, 2)}"
 
@@ -400,11 +381,14 @@ private fun LegendRow(type: MpptSizingType, text: String) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RatioBadge(type = type, ratio = when (type) {
-            MpptSizingType.SUBDIMENSIONADO -> 1.09
-            MpptSizingType.SANO -> 1.20
-            MpptSizingType.SOBREDIMENSIONADO -> 1.31
-        }, compact = true)
+        RatioBadge(
+            type = type,
+            ratio = when (type) {
+                MpptSizingType.SUBDIMENSIONADO -> 0.89
+                MpptSizingType.SANO -> 1.00
+            },
+            compact = true,
+        )
         Spacer(Modifier.width(8.dp))
         Text(text = text, style = MaterialTheme.typography.bodySmall)
     }
@@ -412,7 +396,6 @@ private fun LegendRow(type: MpptSizingType, text: String) {
 
 @Composable
 private fun ResultFootnote(
-    result: MpptCalculationResult,
     availablePanels: Int?,
 ) {
     val panelFilterText = availablePanels?.let {
@@ -420,11 +403,7 @@ private fun ResultFootnote(
     }.orEmpty()
 
     Text(
-        text = if (result.hasHealthyOption) {
-            "Se priorizó la combinación más cercana a un ratio DC/AC de 1.20 dentro del rango sano (1.10–1.30).$panelFilterText"
-        } else {
-            "Ninguna combinación cae en el rango sano (1.10–1.30); se muestra como recomendada la opción disponible más cercana a un ratio DC/AC de 1.20.$panelFilterText"
-        },
+        text = "Se recomienda la combinación que más aprovecha la potencia máxima del MPPT sin superarla. Ninguna configuración mostrada excede ese límite.$panelFilterText",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 4.dp),
@@ -444,10 +423,9 @@ private fun filterResultByPanelCount(
     }
     if (filtered.isEmpty()) return null
 
-    val healthy = filtered.filter { it.type == MpptSizingType.SANO }
-    val recommended = healthy.ifEmpty { filtered }.minBy { abs(it.ratio - 1.20) }
+    val recommended = filtered.maxBy { it.ratio }
     val sorted = filtered.sortedWith(
-        compareBy<MpptCombination> { abs(it.ratio - 1.20) }
+        compareByDescending<MpptCombination> { it.ratio }
             .thenBy { it.seriesPanels }
             .thenBy { it.strings },
     )
@@ -455,7 +433,7 @@ private fun filterResultByPanelCount(
     return MpptCalculationResult(
         recommended = recommended,
         combinations = sorted,
-        hasHealthyOption = healthy.isNotEmpty(),
+        hasHealthyOption = true,
     )
 }
 
