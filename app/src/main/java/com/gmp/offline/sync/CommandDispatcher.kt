@@ -17,12 +17,6 @@ sealed class CommandResult {
     data class NetworkError(val message: String?) : CommandResult()
 }
 
-// Envía un PendingOperationEntity contra el backend. Usa el mismo
-// OkHttpClient que Retrofit (provisto en NetworkModule) para heredar el
-// AuthInterceptor (header Authorization) y el logging — pero acá la
-// request se arma a mano porque el path/método/body son dinámicos (vienen
-// del outbox), algo que Retrofit no resuelve bien sin generar una interfaz
-// fija por endpoint.
 class CommandDispatcher @Inject constructor(
     private val okHttpClient: OkHttpClient,
 ) {
@@ -31,31 +25,20 @@ class CommandDispatcher @Inject constructor(
             val url = BuildConfig.API_BASE_URL.trimEnd('/') + operation.endpointPath
             val mediaType = "application/json; charset=utf-8".toMediaType()
             val body = operation.payloadJson.toRequestBody(mediaType)
-
-            val requestBuilder = Request.Builder()
-                .url(url)
-                .header("X-Command-Id", operation.commandId)
-
+            val requestBuilder = Request.Builder().url(url).header("X-Command-Id", operation.commandId)
             val request = when (operation.httpMethod.uppercase()) {
                 "POST" -> requestBuilder.post(body).build()
+                "PUT" -> requestBuilder.put(body).build()
                 "PATCH" -> requestBuilder.patch(body).build()
                 "DELETE" -> requestBuilder.delete(body).build()
-                else -> throw IllegalArgumentException(
-                    "Método HTTP no soportado en outbox: ${operation.httpMethod}",
-                )
+                else -> throw IllegalArgumentException("Método HTTP no soportado en outbox: ${operation.httpMethod}")
             }
-
             okHttpClient.newCall(request).execute().use { response ->
                 val responseText = response.body?.string().orEmpty()
-                if (response.isSuccessful) {
-                    CommandResult.Success(responseText)
-                } else {
-                    CommandResult.HttpError(response.code, responseText)
-                }
+                if (response.isSuccessful) CommandResult.Success(responseText)
+                else CommandResult.HttpError(response.code, responseText)
             }
         } catch (e: IOException) {
-            // Sin red, timeout, DNS, etc. — se reintenta más tarde, no es un
-            // error de negocio del servidor.
             CommandResult.NetworkError(e.message)
         }
     }
