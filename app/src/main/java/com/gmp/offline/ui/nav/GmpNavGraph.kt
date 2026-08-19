@@ -51,7 +51,14 @@ fun GmpNavGraph(authRepository: AuthRepository, navController: NavHostController
         composable(GmpRoutes.JOB_DETAIL, arguments = listOf(navArgument("jobUuid") { type = NavType.StringType })) { if (authRepository.currentRole == "trabajador") WorkerJobDetailScreen { navController.popBackStack() } else JobDetailScreen({ navController.popBackStack() }) { navController.navigate(GmpRoutes.jobForm(it)) } }
         composable(GmpRoutes.NOTES) { NotesListScreen({ navController.popBackStack() }, { navController.navigate(GmpRoutes.noteEditor()) }, { navController.navigate(GmpRoutes.noteEditor(it)) }) }
         composable(GmpRoutes.NOTE_EDITOR, arguments = listOf(navArgument("noteUuid") { type = NavType.StringType; nullable = true; defaultValue = null })) { entry -> NoteEditorScreen(entry.arguments?.getString("noteUuid"), { navController.popBackStack() }, { navController.popBackStack() }) }
-        composable(GmpRoutes.CALCULATOR_MPPT) { MpptCalculatorScreen { navController.popBackStack() } }
-        composable(GmpRoutes.CALCULATOR_CONSUMPTION) { CalculatorPlaceholderScreen("Calculadora de Consumo") { navController.popBackStack() } }
+        composable(GmpRoutes.CALCULATOR_MPPT) {
+            MpptCalculatorScreen(onBack = { navController.popBackStack() })
+        }
+        composable(GmpRoutes.CALCULATOR_CONSUMPTION) {
+            CalculatorPlaceholderScreen(
+                title = "Calculadora de Consumo",
+                onBack = { navController.popBackStack() },
+            )
+        }
     }
 }
