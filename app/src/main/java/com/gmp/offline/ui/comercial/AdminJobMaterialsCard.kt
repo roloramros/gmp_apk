@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,8 +56,14 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 
 private const val ADMIN_CUSTOM_UNIT_SEPARATOR = "|||unit:"
-private const val ADMIN_OTHER_MATERIAL = "__other__"
 private val ADMIN_MATERIAL_BLOCKED_STATUSES = setOf("cancelled", "invoiced", "partially_paid", "paid")
+
+private data class AdminCustomMaterialInput(
+    val name: String,
+    val unit: String,
+    val quantity: String,
+    val unitPrice: String,
+)
 
 @Composable
 internal fun AdminJobMaterialsManager(
@@ -314,12 +323,13 @@ internal fun AdminJobMaterialsManager(
         AdminAddMaterialDialog(
             catalog = catalog,
             onDismiss = { showAddDialog = false },
-            onAddCatalog = { materialUuid, quantity ->
-                viewModel.addAdminMaterial(materialUuid, quantity)
-                showAddDialog = false
-            },
-            onAddCustom = { name, unit, quantity, unitPrice ->
-                viewModel.addAdminCustomMaterial(name, unit, quantity, unitPrice)
+            onAdd = { catalogItems, custom ->
+                catalogItems.forEach { (materialUuid, quantity) ->
+                    viewModel.addAdminMaterial(materialUuid, quantity)
+                }
+                custom?.let {
+                    viewModel.addAdminCustomMaterial(it.name, it.unit, it.quantity, it.unitPrice)
+                }
                 showAddDialog = false
             },
         )
@@ -471,46 +481,59 @@ private fun PaymentDialog(
 private fun AdminAddMaterialDialog(
     catalog: List<com.gmp.offline.data.local.entities.MaterialEntity>,
     onDismiss: () -> Unit,
-    onAddCatalog: (materialUuid: String, quantity: String) -> Unit,
-    onAddCustom: (name: String, unit: String, quantity: String, unitPrice: String) -> Unit,
+    onAdd: (catalogItems: List<Pair<String, String>>, custom: AdminCustomMaterialInput?) -> Unit,
 ) {
-    var selectedMaterialUuid by remember { mutableStateOf<String?>(null) }
-    var quantity by remember { mutableStateOf("1") }
+    val selectedQuantities = remember { mutableStateMapOf<String, String>() }
+    var includeOther by remember { mutableStateOf(false) }
     var customName by remember { mutableStateOf("") }
     var customUnit by remember { mutableStateOf("") }
+    var customQuantity by remember { mutableStateOf("1") }
     var customUnitPrice by remember { mutableStateOf("") }
 
-    val isOther = selectedMaterialUuid == ADMIN_OTHER_MATERIAL
-    val validQuantity = (quantity.toDoubleOrNull() ?: 0.0) > 0.0
+    val catalogSelectionValid = selectedQuantities.values.all { (it.toDoubleOrNull() ?: 0.0) > 0.0 }
+    val validCustomQuantity = (customQuantity.toDoubleOrNull() ?: 0.0) > 0.0
     val validCustomPrice = customUnitPrice.toBigDecimalOrNull()?.let { it >= BigDecimal.ZERO } == true
-    val canAdd = if (isOther) {
-        customName.isNotBlank() && customUnit.isNotBlank() && validQuantity && validCustomPrice
-    } else {
-        selectedMaterialUuid != null && validQuantity
-    }
+    val customValid = !includeOther || (
+        customName.isNotBlank() &&
+            customUnit.isNotBlank() &&
+            validCustomQuantity &&
+            validCustomPrice
+        )
+    val hasSelection = selectedQuantities.isNotEmpty() || includeOther
+    val canAdd = hasSelection && catalogSelectionValid && customValid
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Agregar material") },
+        title = { Text("Agregar materiales") },
         text = {
             Column {
                 Text(
-                    "Selecciona del catálogo",
+                    "Marca los materiales y escribe la cantidad de cada uno.",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(8.dp))
                 Column(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp).verticalScroll(rememberScrollState()),
                 ) {
                     catalog.forEach { material ->
+                        val selected = selectedQuantities.containsKey(material.uuid)
                         Row(
-                            modifier = Modifier.fillMaxWidth().clickable { selectedMaterialUuid = material.uuid }.padding(vertical = 4.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (selected) selectedQuantities.remove(material.uuid)
+                                    else selectedQuantities[material.uuid] = "1"
+                                }
+                                .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(
-                                selected = selectedMaterialUuid == material.uuid,
-                                onClick = { selectedMaterialUuid = material.uuid },
+                            Checkbox(
+                                checked = selected,
+                                onCheckedChange = { checked ->
+                                    if (checked) selectedQuantities[material.uuid] = selectedQuantities[material.uuid] ?: "1"
+                                    else selectedQuantities.remove(material.uuid)
+                                },
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(material.name)
@@ -527,14 +550,30 @@ private fun AdminAddMaterialDialog(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                            if (selected) {
+                                Spacer(Modifier.width(8.dp))
+                                OutlinedTextField(
+                                    value = selectedQuantities[material.uuid].orEmpty(),
+                                    onValueChange = { selectedQuantities[material.uuid] = it },
+                                    label = { Text("Cantidad") },
+                                    singleLine = true,
+                                    modifier = Modifier.width(110.dp),
+                                )
+                            }
                         }
                     }
 
                     Row(
-                        modifier = Modifier.fillMaxWidth().clickable { selectedMaterialUuid = ADMIN_OTHER_MATERIAL }.padding(vertical = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { includeOther = !includeOther }
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = isOther, onClick = { selectedMaterialUuid = ADMIN_OTHER_MATERIAL })
+                        Checkbox(
+                            checked = includeOther,
+                            onCheckedChange = { includeOther = it },
+                        )
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Otros", fontWeight = FontWeight.SemiBold)
                             Text(
@@ -544,54 +583,70 @@ private fun AdminAddMaterialDialog(
                             )
                         }
                     }
-                }
 
-                Spacer(Modifier.height(12.dp))
-                if (isOther) {
-                    OutlinedTextField(
-                        value = customName,
-                        onValueChange = { customName = it },
-                        label = { Text("Nombre") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = customUnit,
-                        onValueChange = { customUnit = it },
-                        label = { Text("Unidad de medida") },
-                        placeholder = { Text("Ej.: unidad, metro, viaje") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = customUnitPrice,
-                        onValueChange = { customUnitPrice = it },
-                        label = { Text("Precio unitario") },
-                        prefix = { Text('$'.toString()) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(8.dp))
+                    if (includeOther) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = customName,
+                            onValueChange = { customName = it },
+                            label = { Text("Nombre") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = customUnit,
+                            onValueChange = { customUnit = it },
+                            label = { Text("Unidad de medida") },
+                            placeholder = { Text("Ej.: unidad, metro, viaje") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedTextField(
+                                value = customQuantity,
+                                onValueChange = { customQuantity = it },
+                                label = { Text("Cantidad") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            OutlinedTextField(
+                                value = customUnitPrice,
+                                onValueChange = { customUnitPrice = it },
+                                label = { Text("Precio unitario") },
+                                prefix = { Text('$'.toString()) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
                 }
-                OutlinedTextField(
-                    value = quantity,
-                    onValueChange = { quantity = it },
-                    label = { Text("Cantidad") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         },
         confirmButton = {
             TextButton(
                 enabled = canAdd,
                 onClick = {
-                    if (isOther) onAddCustom(customName, customUnit, quantity, customUnitPrice)
-                    else selectedMaterialUuid?.let { onAddCatalog(it, quantity) }
+                    val catalogItems = catalog.mapNotNull { material ->
+                        selectedQuantities[material.uuid]?.let { quantity -> material.uuid to quantity }
+                    }
+                    val custom = if (includeOther) {
+                        AdminCustomMaterialInput(
+                            name = customName,
+                            unit = customUnit,
+                            quantity = customQuantity,
+                            unitPrice = customUnitPrice,
+                        )
+                    } else {
+                        null
+                    }
+                    onAdd(catalogItems, custom)
                 },
-            ) { Text("Agregar", color = SolarGreen) }
+            ) { Text("Agregar seleccionados", color = SolarGreen) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
