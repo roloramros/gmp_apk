@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -30,13 +32,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,7 +55,6 @@ import com.gmp.offline.ui.theme.SolarError
 import com.gmp.offline.ui.theme.SolarGreen
 
 private const val CUSTOM_UNIT_SEPARATOR = "|||unit:"
-private const val OTHER_MATERIAL = "__other__"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,10 +74,11 @@ fun WorkerJobDetailScreen(
     var showMaterialDialog by remember { mutableStateOf(false) }
     var showStartConfirm by remember { mutableStateOf(false) }
     var showFinishConfirm by remember { mutableStateOf(false) }
-    var selectedMaterialUuid by remember { mutableStateOf<String?>(null) }
-    var quantity by remember { mutableStateOf("1") }
+    val selectedQuantities = remember { mutableStateMapOf<String, String>() }
+    var includeOther by remember { mutableStateOf(false) }
     var customName by remember { mutableStateOf("") }
     var customUnit by remember { mutableStateOf("") }
+    var customQuantity by remember { mutableStateOf("1") }
 
     val currentJob = job
     val catalogByUuid = materialCatalog.associateBy { it.uuid }
@@ -225,10 +227,11 @@ fun WorkerJobDetailScreen(
                             )
                             Button(
                                 onClick = {
-                                    selectedMaterialUuid = null
-                                    quantity = "1"
+                                    selectedQuantities.clear()
+                                    includeOther = false
                                     customName = ""
                                     customUnit = ""
+                                    customQuantity = "1"
                                     showMaterialDialog = true
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = SolarGreen),
@@ -316,21 +319,23 @@ fun WorkerJobDetailScreen(
     }
 
     if (showMaterialDialog) {
-        val isOther = selectedMaterialUuid == OTHER_MATERIAL
-        val validQuantity = (quantity.toDoubleOrNull() ?: 0.0) > 0
-        val canAdd = if (isOther) {
-            customName.isNotBlank() && customUnit.isNotBlank() && validQuantity
-        } else {
-            selectedMaterialUuid != null && validQuantity
-        }
+        val catalogSelectionValid = selectedQuantities.values.all { (it.toDoubleOrNull() ?: 0.0) > 0.0 }
+        val validCustomQuantity = (customQuantity.toDoubleOrNull() ?: 0.0) > 0.0
+        val customValid = !includeOther || (
+            customName.isNotBlank() &&
+                customUnit.isNotBlank() &&
+                validCustomQuantity
+            )
+        val hasSelection = selectedQuantities.isNotEmpty() || includeOther
+        val canAdd = hasSelection && catalogSelectionValid && customValid
 
         AlertDialog(
             onDismissRequest = { showMaterialDialog = false },
-            title = { Text("Agregar material") },
+            title = { Text("Agregar materiales") },
             text = {
                 Column {
                     Text(
-                        "Selecciona del catálogo",
+                        "Marca los materiales y escribe la cantidad de cada uno.",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -338,20 +343,30 @@ fun WorkerJobDetailScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 260.dp)
+                            .heightIn(max = 340.dp)
                             .verticalScroll(rememberScrollState()),
                     ) {
                         materialCatalog.forEach { material ->
+                            val selected = selectedQuantities.containsKey(material.uuid)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { selectedMaterialUuid = material.uuid }
+                                    .clickable {
+                                        if (selected) selectedQuantities.remove(material.uuid)
+                                        else selectedQuantities[material.uuid] = "1"
+                                    }
                                     .padding(vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                RadioButton(
-                                    selected = selectedMaterialUuid == material.uuid,
-                                    onClick = { selectedMaterialUuid = material.uuid },
+                                Checkbox(
+                                    checked = selected,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            selectedQuantities[material.uuid] = selectedQuantities[material.uuid] ?: "1"
+                                        } else {
+                                            selectedQuantities.remove(material.uuid)
+                                        }
+                                    },
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(material.name)
@@ -363,19 +378,29 @@ fun WorkerJobDetailScreen(
                                         )
                                     }
                                 }
+                                if (selected) {
+                                    Spacer(Modifier.width(8.dp))
+                                    OutlinedTextField(
+                                        value = selectedQuantities[material.uuid].orEmpty(),
+                                        onValueChange = { selectedQuantities[material.uuid] = it },
+                                        label = { Text("Cantidad") },
+                                        singleLine = true,
+                                        modifier = Modifier.width(110.dp),
+                                    )
+                                }
                             }
                         }
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { selectedMaterialUuid = OTHER_MATERIAL }
+                                .clickable { includeOther = !includeOther }
                                 .padding(vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(
-                                selected = isOther,
-                                onClick = { selectedMaterialUuid = OTHER_MATERIAL },
+                            Checkbox(
+                                checked = includeOther,
+                                onCheckedChange = { includeOther = it },
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Otros", fontWeight = FontWeight.SemiBold)
@@ -386,52 +411,51 @@ fun WorkerJobDetailScreen(
                                 )
                             }
                         }
+
+                        if (includeOther) {
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = customName,
+                                onValueChange = { customName = it },
+                                label = { Text("Nombre") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = customUnit,
+                                onValueChange = { customUnit = it },
+                                label = { Text("Unidad de medida") },
+                                placeholder = { Text("Ej.: viaje, km, unidad") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = customQuantity,
+                                onValueChange = { customQuantity = it },
+                                label = { Text("Cantidad") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
-
-                    Spacer(Modifier.height(12.dp))
-
-                    if (isOther) {
-                        OutlinedTextField(
-                            value = customName,
-                            onValueChange = { customName = it },
-                            label = { Text("Nombre") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = customUnit,
-                            onValueChange = { customUnit = it },
-                            label = { Text("Unidad de medida") },
-                            placeholder = { Text("Ej.: viaje, km, unidad") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
-
-                    OutlinedTextField(
-                        value = quantity,
-                        onValueChange = { quantity = it },
-                        label = { Text("Cantidad") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
             },
             confirmButton = {
                 TextButton(
                     enabled = canAdd,
                     onClick = {
-                        if (isOther) {
-                            viewModel.addWorkerCustomMaterial(customName, customUnit, quantity)
-                        } else {
-                            selectedMaterialUuid?.let { viewModel.addWorkerMaterial(it, quantity) }
+                        selectedQuantities.forEach { (materialUuid, quantity) ->
+                            viewModel.addWorkerMaterial(materialUuid, quantity)
+                        }
+                        if (includeOther) {
+                            viewModel.addWorkerCustomMaterial(customName, customUnit, customQuantity)
                         }
                         showMaterialDialog = false
                     },
                 ) {
-                    Text("Agregar", color = SolarGreen)
+                    Text("Agregar seleccionados", color = SolarGreen)
                 }
             },
             dismissButton = {
