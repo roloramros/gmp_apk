@@ -56,8 +56,7 @@ class WorkerJobsViewModel @Inject constructor(
             .asSequence()
             .filter { it.uuid in assignedJobUuids }
             .sortedWith(
-                compareBy<JobEntity> { it.scheduledAt == null }
-                    .thenBy { it.scheduledAt ?: "" }
+                compareByDescending<JobEntity> { it.scheduledAt ?: it.proposedDate ?: "" }
                     .thenByDescending { it.updatedAt },
             )
             .map { job ->
