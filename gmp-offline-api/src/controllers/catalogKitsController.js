@@ -163,28 +163,48 @@ async function updateKit(req, res) {
   }
 }
 
-// DELETE /catalog-kits/:uuid (soft delete; las fotos quedan huérfanas pero
-// ya no se sirven porque el kit deja de existir para /sync y /public)
+// DELETE /catalog-kits/:uuid (soft delete; las fotos del kit se sueltan
+// también en la misma transacción, para que /sync mande su tombstone y no
+// queden huérfanas — a diferencia de un job borrado, acá no se toca el
+// archivo físico en disco, total nunca se vuelve a servir tras el soft
+// delete del kit padre)
 async function deleteKit(req, res) {
   const { uuid } = req.params;
   if (!UUID_RE.test(uuid)) {
     return res.status(400).json({ error_code: 'invalid_uuid', message: 'uuid inválido en la URL.' });
   }
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
-      `UPDATE catalog_kits
-       SET deleted_at = now(), updated_at = now()
-       WHERE uuid = $1 AND company_id = $2 AND deleted_at IS NULL
-       RETURNING uuid`,
+    await client.query('BEGIN');
+
+    const kitResult = await client.query(
+      `SELECT id, uuid FROM catalog_kits WHERE uuid = $1 AND company_id = $2 AND deleted_at IS NULL FOR UPDATE`,
       [uuid, req.user.company_id]
     );
-    if (result.rows.length === 0) {
+    if (kitResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error_code: 'not_found', message: 'Kit no encontrado.' });
     }
-    return res.status(200).json({ ok: true, uuid: result.rows[0].uuid });
+    const kitId = kitResult.rows[0].id;
+
+    await client.query(
+      `UPDATE catalog_kit_photos SET deleted_at = now(), updated_at = now()
+       WHERE kit_id = $1 AND deleted_at IS NULL`,
+      [kitId]
+    );
+    await client.query(
+      `UPDATE catalog_kits SET deleted_at = now(), updated_at = now() WHERE id = $1`,
+      [kitId]
+    );
+
+    await client.query('COMMIT');
+    return res.status(200).json({ ok: true, uuid });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('[catalogKits] Error en deleteKit:', err);
     return res.status(500).json({ error_code: 'internal_error', message: 'Error interno al eliminar el kit.' });
+  } finally {
+    client.release();
   }
 }
 

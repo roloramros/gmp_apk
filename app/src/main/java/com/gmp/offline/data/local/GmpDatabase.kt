@@ -2,6 +2,8 @@ package com.gmp.offline.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.gmp.offline.data.local.dao.CatalogKitDao
+import com.gmp.offline.data.local.dao.CatalogKitPhotoDao
 import com.gmp.offline.data.local.dao.JobDao
 import com.gmp.offline.data.local.dao.JobMaterialDao
 import com.gmp.offline.data.local.dao.JobPhotoDao
@@ -9,6 +11,8 @@ import com.gmp.offline.data.local.dao.JobWorkerDao
 import com.gmp.offline.data.local.dao.MaterialDao
 import com.gmp.offline.data.local.dao.PendingOperationDao
 import com.gmp.offline.data.local.dao.StaffDao
+import com.gmp.offline.data.local.entities.CatalogKitEntity
+import com.gmp.offline.data.local.entities.CatalogKitPhotoEntity
 import com.gmp.offline.data.local.entities.JobEntity
 import com.gmp.offline.data.local.entities.JobMaterialEntity
 import com.gmp.offline.data.local.entities.JobPhotoEntity
@@ -26,6 +30,8 @@ import com.gmp.offline.data.local.entities.StaffEntity
 // Versión 3 (Fase 6, Paso 4): se agregan `localPath`/`uploadStatus` a
 // JobPhotoEntity para la foto única de comercial (ver comentario en la
 // entidad).
+// Versión 4 (feature "Catálogo"): se agregan CatalogKitEntity y
+// CatalogKitPhotoEntity, espejo de catalog_kits/catalog_kit_photos.
 // Se usa `fallbackToDestructiveMigration()` (ver DatabaseModule.kt) porque
 // el proyecto todavía está en desarrollo temprano — el próximo `/sync`
 // repuebla Room desde cero sin pérdida de datos real (la fuente de verdad
@@ -40,8 +46,10 @@ import com.gmp.offline.data.local.entities.StaffEntity
         JobPhotoEntity::class,
         StaffEntity::class,
         PendingOperationEntity::class,
+        CatalogKitEntity::class,
+        CatalogKitPhotoEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class GmpDatabase : RoomDatabase() {
@@ -52,4 +60,6 @@ abstract class GmpDatabase : RoomDatabase() {
     abstract fun jobPhotoDao(): JobPhotoDao
     abstract fun staffDao(): StaffDao
     abstract fun pendingOperationDao(): PendingOperationDao
+    abstract fun catalogKitDao(): CatalogKitDao
+    abstract fun catalogKitPhotoDao(): CatalogKitPhotoDao
 }

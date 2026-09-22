@@ -1,5 +1,7 @@
 package com.gmp.offline.sync
 
+import com.gmp.offline.data.local.dao.CatalogKitDao
+import com.gmp.offline.data.local.dao.CatalogKitPhotoDao
 import com.gmp.offline.data.local.dao.JobDao
 import com.gmp.offline.data.local.dao.JobMaterialDao
 import com.gmp.offline.data.local.dao.JobPhotoDao
@@ -28,6 +30,8 @@ class SyncEngine @Inject constructor(
     private val jobPhotoDao: JobPhotoDao,
     private val staffDao: StaffDao,
     private val notesDao: NotesDao,
+    private val catalogKitDao: CatalogKitDao,
+    private val catalogKitPhotoDao: CatalogKitPhotoDao,
 ) {
     suspend fun pull(forceFullResync: Boolean = false) {
         val since = if (forceFullResync) "" else (syncCursorStore.lastCursor ?: "")
@@ -88,5 +92,9 @@ class SyncEngine @Inject constructor(
         jobPhotoDao.deleteByUuids(entities.jobPhotos.deletes)
         staffDao.upsertAll(entities.staff.upserts.map { it.toEntity() })
         staffDao.deleteByUuids(entities.staff.deletes)
+        catalogKitDao.upsertAll(entities.catalogKits.upserts.map { it.toEntity() })
+        catalogKitDao.deleteByUuids(entities.catalogKits.deletes)
+        catalogKitPhotoDao.upsertAll(entities.catalogKitPhotos.upserts.map { it.toEntity() })
+        catalogKitPhotoDao.deleteByUuids(entities.catalogKitPhotos.deletes)
     }
 }

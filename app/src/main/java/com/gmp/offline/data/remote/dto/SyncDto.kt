@@ -19,6 +19,8 @@ data class SyncEntitiesDto(
     @SerializedName("job_materials") val jobMaterials: SyncBucketDto<JobMaterialDto>,
     @SerializedName("job_photos") val jobPhotos: SyncBucketDto<JobPhotoDto>,
     val staff: SyncBucketDto<StaffDto>,
+    @SerializedName("catalog_kits") val catalogKits: SyncBucketDto<CatalogKitDto> = SyncBucketDto(emptyList(), emptyList()),
+    @SerializedName("catalog_kit_photos") val catalogKitPhotos: SyncBucketDto<CatalogKitPhotoDto> = SyncBucketDto(emptyList(), emptyList()),
 )
 
 data class SyncBucketDto<T>(
@@ -102,6 +104,34 @@ data class StaffDto(
     val role: String,
     @SerializedName("full_name") val fullName: String,
     val active: Boolean,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("updated_at") val updatedAt: String,
+)
+
+// Espejo de catalog_kits (feature "Catálogo"). power_kw/battery_kwh/price_usd
+// viajan como string desde Postgres (columnas NUMERIC), igual que
+// default_price en MaterialDto — se guardan tal cual, sin castear a Double,
+// para no perder precisión ni arrastrar problemas de locale al mostrarlos.
+data class CatalogKitDto(
+    val uuid: String,
+    val name: String,
+    @SerializedName("power_kw") val powerKw: String?,
+    val voltage: String?,
+    @SerializedName("battery_kwh") val batteryKwh: String?,
+    @SerializedName("panels_count") val panelsCount: Int?,
+    @SerializedName("price_usd") val priceUsd: String?,
+    val description: String?,
+    val active: Boolean,
+    @SerializedName("sort_order") val sortOrder: Int,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("updated_at") val updatedAt: String,
+)
+
+data class CatalogKitPhotoDto(
+    val uuid: String,
+    @SerializedName("kit_uuid") val kitUuid: String,
+    @SerializedName("sort_order") val sortOrder: Int,
+    val url: String,
     @SerializedName("created_at") val createdAt: String,
     @SerializedName("updated_at") val updatedAt: String,
 )

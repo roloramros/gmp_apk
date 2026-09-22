@@ -1,5 +1,7 @@
 package com.gmp.offline.data.remote.dto
 
+import com.gmp.offline.data.local.entities.CatalogKitEntity
+import com.gmp.offline.data.local.entities.CatalogKitPhotoEntity
 import com.gmp.offline.data.local.entities.JobEntity
 import com.gmp.offline.data.local.entities.JobMaterialEntity
 import com.gmp.offline.data.local.entities.JobPhotoEntity
@@ -84,6 +86,32 @@ fun StaffDto.toEntity(): StaffEntity = StaffEntity(
     role = role,
     fullName = fullName,
     active = active,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+)
+
+fun CatalogKitDto.toEntity(): CatalogKitEntity = CatalogKitEntity(
+    uuid = uuid,
+    name = name,
+    powerKw = powerKw,
+    voltage = voltage,
+    batteryKwh = batteryKwh,
+    panelsCount = panelsCount,
+    priceUsd = priceUsd,
+    description = description,
+    active = active,
+    sortOrder = sortOrder,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+)
+
+// localPath/uploadStatus quedan en sus valores por defecto (null/"synced")
+// — ver comentario en CatalogKitPhotoEntity.
+fun CatalogKitPhotoDto.toEntity(): CatalogKitPhotoEntity = CatalogKitPhotoEntity(
+    uuid = uuid,
+    kitUuid = kitUuid,
+    url = url,
+    sortOrder = sortOrder,
     createdAt = createdAt,
     updatedAt = updatedAt,
 )

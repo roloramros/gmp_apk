@@ -3,6 +3,8 @@ package com.gmp.offline.di
 import android.content.Context
 import androidx.room.Room
 import com.gmp.offline.data.local.GmpDatabase
+import com.gmp.offline.data.local.dao.CatalogKitDao
+import com.gmp.offline.data.local.dao.CatalogKitPhotoDao
 import com.gmp.offline.data.local.dao.JobDao
 import com.gmp.offline.data.local.dao.JobMaterialDao
 import com.gmp.offline.data.local.dao.JobPhotoDao
@@ -51,4 +53,10 @@ object DatabaseModule {
 
     @Provides
     fun providePendingOperationDao(db: GmpDatabase): PendingOperationDao = db.pendingOperationDao()
+
+    @Provides
+    fun provideCatalogKitDao(db: GmpDatabase): CatalogKitDao = db.catalogKitDao()
+
+    @Provides
+    fun provideCatalogKitPhotoDao(db: GmpDatabase): CatalogKitPhotoDao = db.catalogKitPhotoDao()
 }
