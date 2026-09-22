@@ -27,15 +27,60 @@ async function login(req, res) {
 }
 
 async function createCompany(req, res) {
-  const { name } = req.body;
+  const { name, slug } = req.body;
   if (!name) {
     return res.status(400).json({ error_code: 'missing_fields', message: 'name es requerido' });
   }
-  const result = await pool.query(
-    `INSERT INTO companies (name, status) VALUES ($1, 'trial') RETURNING id, uuid, name, status, created_at`,
-    [name]
-  );
-  res.status(201).json(result.rows[0]);
+  if (slug && !/^[a-z0-9-]+$/.test(slug)) {
+    return res.status(400).json({
+      error_code: 'invalid_slug',
+      message: 'slug solo puede tener minúsculas, números y guiones (ej. "ricali").',
+    });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO companies (name, slug, status) VALUES ($1, $2, 'trial')
+       RETURNING id, uuid, name, slug, status, created_at`,
+      [name, slug || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error_code: 'slug_taken', message: 'Ese slug ya está en uso por otra empresa.' });
+    }
+    throw err;
+  }
+}
+
+// PATCH /superadmin/companies/:company_id/slug
+// Manual, no autogenerado (decisión del proyecto) — separado de createCompany
+// para poder asignar/corregir el slug de una empresa ya existente.
+async function updateCompanySlug(req, res) {
+  const { company_id } = req.params;
+  const { slug } = req.body;
+  if (!slug || !/^[a-z0-9-]+$/.test(slug)) {
+    return res.status(400).json({
+      error_code: 'invalid_slug',
+      message: 'slug es requerido: solo minúsculas, números y guiones (ej. "ricali").',
+    });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE companies SET slug = $1, updated_at = now()
+       WHERE id = $2 AND deleted_at IS NULL
+       RETURNING id, uuid, name, slug`,
+      [slug, company_id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error_code: 'not_found', message: 'Empresa no encontrada' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error_code: 'slug_taken', message: 'Ese slug ya está en uso por otra empresa.' });
+    }
+    throw err;
+  }
 }
 
 async function createCompanyAdmin(req, res) {
@@ -63,7 +108,7 @@ async function createCompanyAdmin(req, res) {
 
 async function listCompanies(req, res) {
   const result = await pool.query(
-    `SELECT id, uuid, name, status, created_at, updated_at
+    `SELECT id, uuid, name, slug, status, created_at, updated_at
      FROM companies WHERE deleted_at IS NULL ORDER BY created_at DESC`
   );
   res.json(result.rows);
@@ -134,5 +179,6 @@ async function listBillingReports(req, res) {
 
 module.exports = {
   login, createCompany, createCompanyAdmin, listCompanies,
-  updateCompanyStatus, deleteCompany, generateBillingReport, listBillingReports,
+  updateCompanyStatus, updateCompanySlug, deleteCompany,
+  generateBillingReport, listBillingReports,
 };

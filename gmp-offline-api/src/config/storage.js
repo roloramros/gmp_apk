@@ -12,5 +12,6 @@ const UPLOAD_ROOT = process.env.UPLOAD_DIR
   : path.resolve(__dirname, '../../uploads');
 
 const JOB_PHOTOS_DIR = path.join(UPLOAD_ROOT, 'job_photos');
+const CATALOG_KIT_PHOTOS_DIR = path.join(UPLOAD_ROOT, 'catalog_kit_photos');
 
-module.exports = { UPLOAD_ROOT, JOB_PHOTOS_DIR };
+module.exports = { UPLOAD_ROOT, JOB_PHOTOS_DIR, CATALOG_KIT_PHOTOS_DIR };

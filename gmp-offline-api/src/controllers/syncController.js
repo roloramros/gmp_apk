@@ -2,7 +2,10 @@ const pool = require('../db/pool');
 
 const PAGE_SIZE = 500;
 const EPOCH = '1970-01-01T00:00:00.000Z';
-const ENTITY_NAMES = ['jobs', 'job_workers', 'materials', 'job_materials', 'job_photos', 'staff'];
+const ENTITY_NAMES = [
+  'jobs', 'job_workers', 'materials', 'job_materials', 'job_photos', 'staff',
+  'catalog_kits', 'catalog_kit_photos',
+];
 
 function encodeCursorPage(token) {
   return Buffer.from(JSON.stringify(token), 'utf8').toString('base64');
@@ -35,6 +38,17 @@ async function queryEntityPage(entityName, user, since, snapshot, offset) {
   const params = [];
 
   if (user.role === 'cliente' && (entityName === 'materials' || entityName === 'staff')) {
+    return { rows: [], hasMore: false };
+  }
+
+  // Catálogo de kits: contenido de configuración, solo relevante para admin
+  // (y comercial, para tener referencia de precios/specs al hablar con
+  // clientes). trabajador y cliente no lo necesitan — no hay pantalla que
+  // lo use para esos roles todavía.
+  if (
+    (user.role === 'trabajador' || user.role === 'cliente') &&
+    (entityName === 'catalog_kits' || entityName === 'catalog_kit_photos')
+  ) {
     return { rows: [], hasMore: false };
   }
 
@@ -198,6 +212,34 @@ async function queryEntityPage(entityName, user, since, snapshot, offset) {
         LIMIT ${pLimit} OFFSET ${pOffset}`;
       break;
     }
+    case 'catalog_kits': {
+      const pLimit = ph(params, limitPlusOne);
+      const pOffset = ph(params, offset);
+      sql = `
+        SELECT k.uuid, k.updated_at, k.deleted_at,
+          k.name, k.power_kw, k.voltage, k.battery_kwh, k.panels_count,
+          k.price_usd, k.description, k.active, k.sort_order, k.created_at
+        FROM catalog_kits k
+        WHERE k.company_id = ${pCompany}
+          AND k.updated_at > ${pSince} AND k.updated_at <= ${pSnapshot}
+        ORDER BY k.updated_at ASC, k.id ASC
+        LIMIT ${pLimit} OFFSET ${pOffset}`;
+      break;
+    }
+    case 'catalog_kit_photos': {
+      const pLimit = ph(params, limitPlusOne);
+      const pOffset = ph(params, offset);
+      sql = `
+        SELECT kp.uuid, kp.updated_at, kp.deleted_at,
+          k.uuid AS kit_uuid, kp.sort_order, kp.created_at
+        FROM catalog_kit_photos kp
+        JOIN catalog_kits k ON k.id = kp.kit_id
+        WHERE kp.company_id = ${pCompany}
+          AND kp.updated_at > ${pSince} AND kp.updated_at <= ${pSnapshot}
+        ORDER BY kp.updated_at ASC, kp.id ASC
+        LIMIT ${pLimit} OFFSET ${pOffset}`;
+      break;
+    }
     default:
       return { rows: [], hasMore: false };
   }
@@ -300,6 +342,30 @@ function formatUpsert(entityName, row) {
         role: row.role,
         full_name: row.full_name,
         active: row.active,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    case 'catalog_kits':
+      return {
+        uuid: row.uuid,
+        name: row.name,
+        power_kw: row.power_kw,
+        voltage: row.voltage,
+        battery_kwh: row.battery_kwh,
+        panels_count: row.panels_count,
+        price_usd: row.price_usd,
+        description: row.description,
+        active: row.active,
+        sort_order: row.sort_order,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    case 'catalog_kit_photos':
+      return {
+        uuid: row.uuid,
+        kit_uuid: row.kit_uuid,
+        sort_order: row.sort_order,
+        url: `/catalog-kits/${row.kit_uuid}/photos/${row.uuid}/file`,
         created_at: row.created_at,
         updated_at: row.updated_at,
       };

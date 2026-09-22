@@ -23,6 +23,12 @@ const notesRoutes = require('./routes/notes');
 app.use('/notes', notesRoutes);
 const deviceTokensRoutes = require('./routes/deviceTokens');
 app.use('/device-tokens', deviceTokensRoutes);
+const catalogKitsRoutes = require('./routes/catalogKits');
+app.use('/catalog-kits', catalogKitsRoutes);
+const companyProfileRoutes = require('./routes/companyProfile');
+app.use('/', companyProfileRoutes);
+const publicRoutes = require('./routes/public');
+app.use('/public', publicRoutes);
 
 app.get('/health', async (req, res) => {
   try {
