@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
@@ -34,6 +35,10 @@ fun GmpNavigationDrawer(
     onOpenMpptCalculator: () -> Unit,
     onOpenConsumptionCalculator: () -> Unit,
     onLogout: () -> Unit,
+    // Solo comercial la usa hoy (admin ya tiene "Catálogo" como pestaña en su
+    // propio home, y trabajador no gestiona el catálogo) — por eso es
+    // opcional y no se agrega un ítem al drawer cuando viene null.
+    onOpenCatalog: (() -> Unit)? = null,
     content: @Composable (onOpenDrawer: () -> Unit) -> Unit,
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -62,6 +67,13 @@ fun GmpNavigationDrawer(
                         onClick = { closeDrawer(); onOpenNotes() },
                         icon = { Icon(Icons.Filled.EditNote, null) }, modifier = Modifier.padding(horizontal = 12.dp),
                     )
+                    if (onOpenCatalog != null) {
+                        NavigationDrawerItem(
+                            label = { Text("Catálogo de kits") }, selected = false,
+                            onClick = { closeDrawer(); onOpenCatalog() },
+                            icon = { Icon(Icons.Filled.Storefront, null) }, modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
                     NavigationDrawerItem(
                         label = { Text("Calculadora Dimensionado MPPT") }, selected = false,
                         onClick = { closeDrawer(); onOpenMpptCalculator() }, modifier = Modifier.padding(horizontal = 12.dp),

@@ -70,6 +70,7 @@ import java.io.File
 @Composable
 fun CatalogTabContent(
     searchQuery: String = "",
+    modifier: Modifier = Modifier,
     viewModel: CatalogViewModel = hiltViewModel(),
 ) {
     val kits by viewModel.kits.collectAsStateWithLifecycle()
@@ -85,7 +86,7 @@ fun CatalogTabContent(
         else kits.filter { it.name.contains(normalizedQuery, ignoreCase = true) }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
