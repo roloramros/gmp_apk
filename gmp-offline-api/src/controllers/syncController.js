@@ -5,6 +5,7 @@ const EPOCH = '1970-01-01T00:00:00.000Z';
 const ENTITY_NAMES = [
   'jobs', 'job_workers', 'materials', 'job_materials', 'job_photos', 'staff',
   'catalog_kits', 'catalog_kit_photos',
+  'catalog_products', 'catalog_product_photos', 'gallery_photos',
 ];
 
 function encodeCursorPage(token) {
@@ -47,7 +48,9 @@ async function queryEntityPage(entityName, user, since, snapshot, offset) {
   // lo use para esos roles todavía.
   if (
     (user.role === 'trabajador' || user.role === 'cliente') &&
-    (entityName === 'catalog_kits' || entityName === 'catalog_kit_photos')
+    (entityName === 'catalog_kits' || entityName === 'catalog_kit_photos' ||
+     entityName === 'catalog_products' || entityName === 'catalog_product_photos' ||
+     entityName === 'gallery_photos')
   ) {
     return { rows: [], hasMore: false };
   }
@@ -240,6 +243,47 @@ async function queryEntityPage(entityName, user, since, snapshot, offset) {
         LIMIT ${pLimit} OFFSET ${pOffset}`;
       break;
     }
+    case 'catalog_products': {
+      const pLimit = ph(params, limitPlusOne);
+      const pOffset = ph(params, offset);
+      sql = `
+        SELECT p.uuid, p.updated_at, p.deleted_at,
+          p.category, p.name, p.price_usd, p.description, p.in_stock,
+          p.active, p.sort_order, p.created_at
+        FROM catalog_products p
+        WHERE p.company_id = ${pCompany}
+          AND p.updated_at > ${pSince} AND p.updated_at <= ${pSnapshot}
+        ORDER BY p.updated_at ASC, p.id ASC
+        LIMIT ${pLimit} OFFSET ${pOffset}`;
+      break;
+    }
+    case 'catalog_product_photos': {
+      const pLimit = ph(params, limitPlusOne);
+      const pOffset = ph(params, offset);
+      sql = `
+        SELECT pp.uuid, pp.updated_at, pp.deleted_at,
+          p.uuid AS product_uuid, pp.sort_order, pp.created_at
+        FROM catalog_product_photos pp
+        JOIN catalog_products p ON p.id = pp.product_id
+        WHERE pp.company_id = ${pCompany}
+          AND pp.updated_at > ${pSince} AND pp.updated_at <= ${pSnapshot}
+        ORDER BY pp.updated_at ASC, pp.id ASC
+        LIMIT ${pLimit} OFFSET ${pOffset}`;
+      break;
+    }
+    case 'gallery_photos': {
+      const pLimit = ph(params, limitPlusOne);
+      const pOffset = ph(params, offset);
+      sql = `
+        SELECT g.uuid, g.updated_at, g.deleted_at,
+          g.caption, g.active, g.sort_order, g.created_at
+        FROM gallery_photos g
+        WHERE g.company_id = ${pCompany}
+          AND g.updated_at > ${pSince} AND g.updated_at <= ${pSnapshot}
+        ORDER BY g.updated_at ASC, g.id ASC
+        LIMIT ${pLimit} OFFSET ${pOffset}`;
+      break;
+    }
     default:
       return { rows: [], hasMore: false };
   }
@@ -366,6 +410,38 @@ function formatUpsert(entityName, row) {
         kit_uuid: row.kit_uuid,
         sort_order: row.sort_order,
         url: `/catalog-kits/${row.kit_uuid}/photos/${row.uuid}/file`,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    case 'catalog_products':
+      return {
+        uuid: row.uuid,
+        category: row.category,
+        name: row.name,
+        price_usd: row.price_usd,
+        description: row.description,
+        in_stock: row.in_stock,
+        active: row.active,
+        sort_order: row.sort_order,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    case 'catalog_product_photos':
+      return {
+        uuid: row.uuid,
+        product_uuid: row.product_uuid,
+        sort_order: row.sort_order,
+        url: `/catalog-products/${row.product_uuid}/photos/${row.uuid}/file`,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    case 'gallery_photos':
+      return {
+        uuid: row.uuid,
+        caption: row.caption,
+        active: row.active,
+        sort_order: row.sort_order,
+        url: `/gallery/${row.uuid}/file`,
         created_at: row.created_at,
         updated_at: row.updated_at,
       };
