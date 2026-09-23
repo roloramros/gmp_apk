@@ -4,6 +4,9 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.gmp.offline.data.local.dao.CatalogKitDao
 import com.gmp.offline.data.local.dao.CatalogKitPhotoDao
+import com.gmp.offline.data.local.dao.CatalogProductDao
+import com.gmp.offline.data.local.dao.CatalogProductPhotoDao
+import com.gmp.offline.data.local.dao.GalleryPhotoDao
 import com.gmp.offline.data.local.dao.JobDao
 import com.gmp.offline.data.local.dao.JobMaterialDao
 import com.gmp.offline.data.local.dao.JobPhotoDao
@@ -13,6 +16,9 @@ import com.gmp.offline.data.local.dao.PendingOperationDao
 import com.gmp.offline.data.local.dao.StaffDao
 import com.gmp.offline.data.local.entities.CatalogKitEntity
 import com.gmp.offline.data.local.entities.CatalogKitPhotoEntity
+import com.gmp.offline.data.local.entities.CatalogProductEntity
+import com.gmp.offline.data.local.entities.CatalogProductPhotoEntity
+import com.gmp.offline.data.local.entities.GalleryPhotoEntity
 import com.gmp.offline.data.local.entities.JobEntity
 import com.gmp.offline.data.local.entities.JobMaterialEntity
 import com.gmp.offline.data.local.entities.JobPhotoEntity
@@ -32,6 +38,9 @@ import com.gmp.offline.data.local.entities.StaffEntity
 // entidad).
 // Versión 4 (feature "Catálogo"): se agregan CatalogKitEntity y
 // CatalogKitPhotoEntity, espejo de catalog_kits/catalog_kit_photos.
+// Versión 5 (sitio profesional): se agregan CatalogProductEntity/
+// CatalogProductPhotoEntity (tienda de componentes) y GalleryPhotoEntity
+// (galería de instalaciones), mismo patrón que la versión 4.
 // Se usa `fallbackToDestructiveMigration()` (ver DatabaseModule.kt) porque
 // el proyecto todavía está en desarrollo temprano — el próximo `/sync`
 // repuebla Room desde cero sin pérdida de datos real (la fuente de verdad
@@ -48,8 +57,11 @@ import com.gmp.offline.data.local.entities.StaffEntity
         PendingOperationEntity::class,
         CatalogKitEntity::class,
         CatalogKitPhotoEntity::class,
+        CatalogProductEntity::class,
+        CatalogProductPhotoEntity::class,
+        GalleryPhotoEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class GmpDatabase : RoomDatabase() {
@@ -62,4 +74,7 @@ abstract class GmpDatabase : RoomDatabase() {
     abstract fun pendingOperationDao(): PendingOperationDao
     abstract fun catalogKitDao(): CatalogKitDao
     abstract fun catalogKitPhotoDao(): CatalogKitPhotoDao
+    abstract fun catalogProductDao(): CatalogProductDao
+    abstract fun catalogProductPhotoDao(): CatalogProductPhotoDao
+    abstract fun galleryPhotoDao(): GalleryPhotoDao
 }

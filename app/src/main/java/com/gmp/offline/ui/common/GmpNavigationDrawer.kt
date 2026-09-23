@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerValue
@@ -39,6 +41,8 @@ fun GmpNavigationDrawer(
     // propio home, y trabajador no gestiona el catálogo) — por eso es
     // opcional y no se agrega un ítem al drawer cuando viene null.
     onOpenCatalog: (() -> Unit)? = null,
+    onOpenStore: (() -> Unit)? = null,
+    onOpenGallery: (() -> Unit)? = null,
     content: @Composable (onOpenDrawer: () -> Unit) -> Unit,
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -72,6 +76,20 @@ fun GmpNavigationDrawer(
                             label = { Text("Catálogo de kits") }, selected = false,
                             onClick = { closeDrawer(); onOpenCatalog() },
                             icon = { Icon(Icons.Filled.Storefront, null) }, modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
+                    if (onOpenStore != null) {
+                        NavigationDrawerItem(
+                            label = { Text("Tienda") }, selected = false,
+                            onClick = { closeDrawer(); onOpenStore() },
+                            icon = { Icon(Icons.Filled.ShoppingCart, null) }, modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
+                    if (onOpenGallery != null) {
+                        NavigationDrawerItem(
+                            label = { Text("Galería") }, selected = false,
+                            onClick = { closeDrawer(); onOpenGallery() },
+                            icon = { Icon(Icons.Filled.PhotoLibrary, null) }, modifier = Modifier.padding(horizontal = 12.dp),
                         )
                     }
                     NavigationDrawerItem(

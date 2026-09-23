@@ -11,6 +11,8 @@ import com.gmp.offline.data.repository.AuthRepository
 import com.gmp.offline.ui.HomeScreen
 import com.gmp.offline.ui.admin.AdminHomeScreen
 import com.gmp.offline.ui.admin.CatalogScreen
+import com.gmp.offline.ui.admin.GalleryScreen
+import com.gmp.offline.ui.admin.StoreScreen
 import com.gmp.offline.ui.calculators.CalculatorPlaceholderScreen
 import com.gmp.offline.ui.comercial.ComercialJobsListScreen
 import com.gmp.offline.ui.comercial.JobDetailScreen
@@ -28,6 +30,8 @@ object GmpRoutes {
     const val NOTES = "notes"; const val NOTE_EDITOR = "note_editor?noteUuid={noteUuid}"
     const val CALCULATOR_MPPT = "calculator_mppt"; const val CALCULATOR_CONSUMPTION = "calculator_consumption"
     const val CATALOG = "catalog"
+    const val STORE = "store"
+    const val GALLERY = "gallery"
     fun jobForm(jobUuid: String? = null) = if (jobUuid != null) "job_form?jobUuid=$jobUuid" else "job_form"
     fun jobDetail(jobUuid: String) = "job_detail/$jobUuid"
     fun noteEditor(noteUuid: String? = null) = if (noteUuid != null) "note_editor?noteUuid=$noteUuid" else "note_editor"
@@ -40,6 +44,8 @@ fun GmpNavGraph(authRepository: AuthRepository, navController: NavHostController
     val openMppt = { navController.navigate(GmpRoutes.CALCULATOR_MPPT) }
     val openConsumption = { navController.navigate(GmpRoutes.CALCULATOR_CONSUMPTION) }
     val openCatalog = { navController.navigate(GmpRoutes.CATALOG) }
+    val openStore = { navController.navigate(GmpRoutes.STORE) }
+    val openGallery = { navController.navigate(GmpRoutes.GALLERY) }
     val logout = { navController.navigate(GmpRoutes.LOGIN) { popUpTo(GmpRoutes.HOME) { inclusive = true } } }
 
     NavHost(navController = navController, startDestination = startDestination) {
@@ -63,6 +69,8 @@ fun GmpNavGraph(authRepository: AuthRepository, navController: NavHostController
                     onOpenMpptCalculator = openMppt,
                     onOpenConsumptionCalculator = openConsumption,
                     onOpenCatalog = openCatalog,
+                    onOpenStore = openStore,
+                    onOpenGallery = openGallery,
                 )
                 "admin" -> AdminHomeScreen(
                     onLoggedOut = logout,
@@ -140,6 +148,12 @@ fun GmpNavGraph(authRepository: AuthRepository, navController: NavHostController
 
         composable(GmpRoutes.CATALOG) {
             CatalogScreen(onBack = { navController.popBackStack() })
+        }
+        composable(GmpRoutes.STORE) {
+            StoreScreen(onBack = { navController.popBackStack() })
+        }
+        composable(GmpRoutes.GALLERY) {
+            GalleryScreen(onBack = { navController.popBackStack() })
         }
 
         composable(GmpRoutes.CALCULATOR_MPPT) {

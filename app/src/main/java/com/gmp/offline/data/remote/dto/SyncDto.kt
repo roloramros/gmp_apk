@@ -21,6 +21,9 @@ data class SyncEntitiesDto(
     val staff: SyncBucketDto<StaffDto>,
     @SerializedName("catalog_kits") val catalogKits: SyncBucketDto<CatalogKitDto> = SyncBucketDto(emptyList(), emptyList()),
     @SerializedName("catalog_kit_photos") val catalogKitPhotos: SyncBucketDto<CatalogKitPhotoDto> = SyncBucketDto(emptyList(), emptyList()),
+    @SerializedName("catalog_products") val catalogProducts: SyncBucketDto<CatalogProductDto> = SyncBucketDto(emptyList(), emptyList()),
+    @SerializedName("catalog_product_photos") val catalogProductPhotos: SyncBucketDto<CatalogProductPhotoDto> = SyncBucketDto(emptyList(), emptyList()),
+    @SerializedName("gallery_photos") val galleryPhotos: SyncBucketDto<GalleryPhotoDto> = SyncBucketDto(emptyList(), emptyList()),
 )
 
 data class SyncBucketDto<T>(
@@ -130,6 +133,40 @@ data class CatalogKitDto(
 data class CatalogKitPhotoDto(
     val uuid: String,
     @SerializedName("kit_uuid") val kitUuid: String,
+    @SerializedName("sort_order") val sortOrder: Int,
+    val url: String,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("updated_at") val updatedAt: String,
+)
+
+// Espejo de catalog_products (tienda de componentes sueltos).
+data class CatalogProductDto(
+    val uuid: String,
+    val category: String?,
+    val name: String,
+    @SerializedName("price_usd") val priceUsd: String?,
+    val description: String?,
+    @SerializedName("in_stock") val inStock: Boolean,
+    val active: Boolean,
+    @SerializedName("sort_order") val sortOrder: Int,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("updated_at") val updatedAt: String,
+)
+
+data class CatalogProductPhotoDto(
+    val uuid: String,
+    @SerializedName("product_uuid") val productUuid: String,
+    @SerializedName("sort_order") val sortOrder: Int,
+    val url: String,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("updated_at") val updatedAt: String,
+)
+
+// Espejo de gallery_photos (instalaciones terminadas, sin "padre").
+data class GalleryPhotoDto(
+    val uuid: String,
+    val caption: String?,
+    val active: Boolean,
     @SerializedName("sort_order") val sortOrder: Int,
     val url: String,
     @SerializedName("created_at") val createdAt: String,

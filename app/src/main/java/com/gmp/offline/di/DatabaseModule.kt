@@ -5,6 +5,9 @@ import androidx.room.Room
 import com.gmp.offline.data.local.GmpDatabase
 import com.gmp.offline.data.local.dao.CatalogKitDao
 import com.gmp.offline.data.local.dao.CatalogKitPhotoDao
+import com.gmp.offline.data.local.dao.CatalogProductDao
+import com.gmp.offline.data.local.dao.CatalogProductPhotoDao
+import com.gmp.offline.data.local.dao.GalleryPhotoDao
 import com.gmp.offline.data.local.dao.JobDao
 import com.gmp.offline.data.local.dao.JobMaterialDao
 import com.gmp.offline.data.local.dao.JobPhotoDao
@@ -59,4 +62,13 @@ object DatabaseModule {
 
     @Provides
     fun provideCatalogKitPhotoDao(db: GmpDatabase): CatalogKitPhotoDao = db.catalogKitPhotoDao()
+
+    @Provides
+    fun provideCatalogProductDao(db: GmpDatabase): CatalogProductDao = db.catalogProductDao()
+
+    @Provides
+    fun provideCatalogProductPhotoDao(db: GmpDatabase): CatalogProductPhotoDao = db.catalogProductPhotoDao()
+
+    @Provides
+    fun provideGalleryPhotoDao(db: GmpDatabase): GalleryPhotoDao = db.galleryPhotoDao()
 }

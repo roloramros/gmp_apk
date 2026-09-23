@@ -2,6 +2,9 @@ package com.gmp.offline.sync
 
 import com.gmp.offline.data.local.dao.CatalogKitDao
 import com.gmp.offline.data.local.dao.CatalogKitPhotoDao
+import com.gmp.offline.data.local.dao.CatalogProductDao
+import com.gmp.offline.data.local.dao.CatalogProductPhotoDao
+import com.gmp.offline.data.local.dao.GalleryPhotoDao
 import com.gmp.offline.data.local.dao.JobDao
 import com.gmp.offline.data.local.dao.JobMaterialDao
 import com.gmp.offline.data.local.dao.JobPhotoDao
@@ -32,6 +35,9 @@ class SyncEngine @Inject constructor(
     private val notesDao: NotesDao,
     private val catalogKitDao: CatalogKitDao,
     private val catalogKitPhotoDao: CatalogKitPhotoDao,
+    private val catalogProductDao: CatalogProductDao,
+    private val catalogProductPhotoDao: CatalogProductPhotoDao,
+    private val galleryPhotoDao: GalleryPhotoDao,
 ) {
     suspend fun pull(forceFullResync: Boolean = false) {
         val since = if (forceFullResync) "" else (syncCursorStore.lastCursor ?: "")
@@ -96,5 +102,11 @@ class SyncEngine @Inject constructor(
         catalogKitDao.deleteByUuids(entities.catalogKits.deletes)
         catalogKitPhotoDao.upsertAll(entities.catalogKitPhotos.upserts.map { it.toEntity() })
         catalogKitPhotoDao.deleteByUuids(entities.catalogKitPhotos.deletes)
+        catalogProductDao.upsertAll(entities.catalogProducts.upserts.map { it.toEntity() })
+        catalogProductDao.deleteByUuids(entities.catalogProducts.deletes)
+        catalogProductPhotoDao.upsertAll(entities.catalogProductPhotos.upserts.map { it.toEntity() })
+        catalogProductPhotoDao.deleteByUuids(entities.catalogProductPhotos.deletes)
+        galleryPhotoDao.upsertAll(entities.galleryPhotos.upserts.map { it.toEntity() })
+        galleryPhotoDao.deleteByUuids(entities.galleryPhotos.deletes)
     }
 }

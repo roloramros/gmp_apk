@@ -2,6 +2,9 @@ package com.gmp.offline.data.remote.dto
 
 import com.gmp.offline.data.local.entities.CatalogKitEntity
 import com.gmp.offline.data.local.entities.CatalogKitPhotoEntity
+import com.gmp.offline.data.local.entities.CatalogProductEntity
+import com.gmp.offline.data.local.entities.CatalogProductPhotoEntity
+import com.gmp.offline.data.local.entities.GalleryPhotoEntity
 import com.gmp.offline.data.local.entities.JobEntity
 import com.gmp.offline.data.local.entities.JobMaterialEntity
 import com.gmp.offline.data.local.entities.JobPhotoEntity
@@ -112,6 +115,38 @@ fun CatalogKitPhotoDto.toEntity(): CatalogKitPhotoEntity = CatalogKitPhotoEntity
     kitUuid = kitUuid,
     url = url,
     sortOrder = sortOrder,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+)
+
+fun CatalogProductDto.toEntity(): CatalogProductEntity = CatalogProductEntity(
+    uuid = uuid,
+    category = category,
+    name = name,
+    priceUsd = priceUsd,
+    description = description,
+    inStock = inStock,
+    active = active,
+    sortOrder = sortOrder,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+)
+
+fun CatalogProductPhotoDto.toEntity(): CatalogProductPhotoEntity = CatalogProductPhotoEntity(
+    uuid = uuid,
+    productUuid = productUuid,
+    url = url,
+    sortOrder = sortOrder,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+)
+
+fun GalleryPhotoDto.toEntity(): GalleryPhotoEntity = GalleryPhotoEntity(
+    uuid = uuid,
+    caption = caption,
+    active = active,
+    sortOrder = sortOrder,
+    url = url,
     createdAt = createdAt,
     updatedAt = updatedAt,
 )

@@ -14,6 +14,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -34,7 +35,7 @@ import com.gmp.offline.ui.theme.SolarAmber
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
 
-private enum class AdminTab(val label: String) { MONTAJES("Montajes"), PERSONAL("Personal"), MATERIALES("Materiales"), CATALOGO("Catálogo") }
+private enum class AdminTab(val label: String) { MONTAJES("Montajes"), PERSONAL("Personal"), MATERIALES("Materiales"), CATALOGO("Catálogo"), TIENDA("Tienda"), GALERIA("Galería") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,7 +68,7 @@ fun AdminHomeScreen(
                 title = { Text("GM Pro · Administración", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = { IconButton(onClick = openDrawer) { Icon(Icons.Filled.Menu, "Abrir menú", tint = SolarGreen) } },
                 actions = { IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) searchQuery = "" }) {
-                    val description = when (currentTab) { AdminTab.MONTAJES -> "Buscar montaje"; AdminTab.PERSONAL -> "Buscar personal"; AdminTab.MATERIALES -> "Buscar material"; AdminTab.CATALOGO -> "Buscar kit" }
+                    val description = when (currentTab) { AdminTab.MONTAJES -> "Buscar montaje"; AdminTab.PERSONAL -> "Buscar personal"; AdminTab.MATERIALES -> "Buscar material"; AdminTab.CATALOGO -> "Buscar kit"; AdminTab.TIENDA -> "Buscar producto"; AdminTab.GALERIA -> "Buscar por descripción" }
                     Icon(Icons.Filled.Search, description, tint = SolarGreen)
                 } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -75,12 +76,12 @@ fun AdminHomeScreen(
             floatingActionButton = { if (currentTab == AdminTab.MONTAJES) FloatingActionButton(onClick = onCreateJob, containerColor = SolarAmber, contentColor = SolarGreenDark) { Icon(Icons.Filled.Add, "Nuevo montaje") } },
         ) { innerPadding ->
             Column(Modifier.fillMaxSize().padding(innerPadding)) {
-                TabRow(selectedTabIndex = selectedTab, containerColor = MaterialTheme.colorScheme.surface, contentColor = SolarGreen) {
+                ScrollableTabRow(selectedTabIndex = selectedTab, containerColor = MaterialTheme.colorScheme.surface, contentColor = SolarGreen, edgePadding = 12.dp) {
                     AdminTab.entries.forEachIndexed { index, tab -> Tab(selected = selectedTab == index, onClick = { selectedTab = index; closeSearch() }, text = { Text(tab.label) }) }
                 }
                 if (searchVisible && currentTab != AdminTab.MONTAJES) AdminSearchBar(
                     query = searchQuery,
-                    placeholder = when (currentTab) { AdminTab.PERSONAL -> "Buscar por nombre"; AdminTab.MATERIALES -> "Buscar material por nombre"; AdminTab.CATALOGO -> "Buscar kit por nombre"; AdminTab.MONTAJES -> "Buscar por nombre" },
+                    placeholder = when (currentTab) { AdminTab.PERSONAL -> "Buscar por nombre"; AdminTab.MATERIALES -> "Buscar material por nombre"; AdminTab.CATALOGO -> "Buscar kit por nombre"; AdminTab.TIENDA -> "Buscar producto por nombre"; AdminTab.GALERIA -> "Buscar por descripción"; AdminTab.MONTAJES -> "Buscar por nombre" },
                     onQueryChange = { searchQuery = it }, onClose = { closeSearch() },
                 )
                 when (currentTab) {
@@ -88,6 +89,8 @@ fun AdminHomeScreen(
                     AdminTab.PERSONAL -> StaffTabContent(searchQuery)
                     AdminTab.MATERIALES -> MaterialsTabContent(searchQuery)
                     AdminTab.CATALOGO -> CatalogTabContent(searchQuery)
+                    AdminTab.TIENDA -> StoreTabContent(searchQuery)
+                    AdminTab.GALERIA -> GalleryTabContent(searchQuery)
                 }
             }
         }
