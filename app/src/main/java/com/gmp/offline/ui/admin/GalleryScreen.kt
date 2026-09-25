@@ -18,11 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 
-// Wrapper de la pestaña "Catálogo" para comercial, que no tiene un home con
-// tabs como admin (ComercialJobsListScreen es una pantalla única con drawer
-// lateral) — se llega acá desde el ítem "Galería" del drawer. El
-// contenido (lista, formulario, fotos) es el mismo GalleryTabContent que usa
-// AdminHomeScreen, así que cualquier cambio ahí aplica para los dos roles.
+// Wrapper de "Galería" para admin y comercial (ver comentario equivalente
+// en CatalogScreen.kt) — llegan acá desde el ítem "Galería" del drawer.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalleryScreen(onBack: () -> Unit) {

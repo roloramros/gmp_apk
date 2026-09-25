@@ -79,6 +79,9 @@ fun GmpNavGraph(authRepository: AuthRepository, navController: NavHostController
                     onOpenNotes = openNotes,
                     onOpenMpptCalculator = openMppt,
                     onOpenConsumptionCalculator = openConsumption,
+                    onOpenCatalog = openCatalog,
+                    onOpenStore = openStore,
+                    onOpenGallery = openGallery,
                 )
                 "trabajador" -> WorkerHomeScreen(
                     onLoggedOut = logout,

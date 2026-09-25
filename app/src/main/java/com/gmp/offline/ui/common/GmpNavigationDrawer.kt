@@ -37,9 +37,9 @@ fun GmpNavigationDrawer(
     onOpenMpptCalculator: () -> Unit,
     onOpenConsumptionCalculator: () -> Unit,
     onLogout: () -> Unit,
-    // Solo comercial la usa hoy (admin ya tiene "Catálogo" como pestaña en su
-    // propio home, y trabajador no gestiona el catálogo) — por eso es
-    // opcional y no se agrega un ítem al drawer cuando viene null.
+    // admin y comercial la usan (catálogo/tienda/galería viven en el drawer
+    // para los dos); trabajador no gestiona nada de esto — por eso son
+    // opcionales y no se agrega el ítem al drawer cuando viene null.
     onOpenCatalog: (() -> Unit)? = null,
     onOpenStore: (() -> Unit)? = null,
     onOpenGallery: (() -> Unit)? = null,

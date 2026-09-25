@@ -36,7 +36,7 @@ import com.gmp.offline.ui.theme.SolarAmber
 import com.gmp.offline.ui.theme.SolarGreen
 import com.gmp.offline.ui.theme.SolarGreenDark
 
-private enum class AdminTab(val label: String) { MONTAJES("Montajes"), PERSONAL("Personal"), MATERIALES("Materiales"), CATALOGO("Catálogo"), TIENDA("Tienda"), GALERIA("Galería") }
+private enum class AdminTab(val label: String) { MONTAJES("Montajes"), PERSONAL("Personal"), MATERIALES("Materiales") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +47,9 @@ fun AdminHomeScreen(
     onOpenNotes: () -> Unit,
     onOpenMpptCalculator: () -> Unit,
     onOpenConsumptionCalculator: () -> Unit,
+    onOpenCatalog: () -> Unit,
+    onOpenStore: () -> Unit,
+    onOpenGallery: () -> Unit,
     jobsViewModel: ComercialJobsListViewModel = hiltViewModel(),
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -63,13 +66,14 @@ fun AdminHomeScreen(
         onSync = { jobsViewModel.syncNow() }, onOpenNotes = onOpenNotes,
         onOpenMpptCalculator = onOpenMpptCalculator, onOpenConsumptionCalculator = onOpenConsumptionCalculator,
         onLogout = { jobsViewModel.logout(onLoggedOut) },
+        onOpenCatalog = onOpenCatalog, onOpenStore = onOpenStore, onOpenGallery = onOpenGallery,
     ) { openDrawer ->
         Scaffold(
             topBar = { TopAppBar(
                 title = { Text("GM Pro · Administración", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = { IconButton(onClick = openDrawer) { Icon(Icons.Filled.Menu, "Abrir menú", tint = SolarGreen) } },
                 actions = { IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) searchQuery = "" }) {
-                    val description = when (currentTab) { AdminTab.MONTAJES -> "Buscar montaje"; AdminTab.PERSONAL -> "Buscar personal"; AdminTab.MATERIALES -> "Buscar material"; AdminTab.CATALOGO -> "Buscar kit"; AdminTab.TIENDA -> "Buscar producto"; AdminTab.GALERIA -> "Buscar por descripción" }
+                    val description = when (currentTab) { AdminTab.MONTAJES -> "Buscar montaje"; AdminTab.PERSONAL -> "Buscar personal"; AdminTab.MATERIALES -> "Buscar material" }
                     Icon(Icons.Filled.Search, description, tint = SolarGreen)
                 } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -82,16 +86,13 @@ fun AdminHomeScreen(
                 }
                 if (searchVisible && currentTab != AdminTab.MONTAJES) AdminSearchBar(
                     query = searchQuery,
-                    placeholder = when (currentTab) { AdminTab.PERSONAL -> "Buscar por nombre"; AdminTab.MATERIALES -> "Buscar material por nombre"; AdminTab.CATALOGO -> "Buscar kit por nombre"; AdminTab.TIENDA -> "Buscar producto por nombre"; AdminTab.GALERIA -> "Buscar por descripción"; AdminTab.MONTAJES -> "Buscar por nombre" },
+                    placeholder = when (currentTab) { AdminTab.PERSONAL -> "Buscar por nombre"; AdminTab.MATERIALES -> "Buscar material por nombre"; AdminTab.MONTAJES -> "Buscar por nombre" },
                     onQueryChange = { searchQuery = it }, onClose = { closeSearch() },
                 )
                 when (currentTab) {
                     AdminTab.MONTAJES -> JobsListContent(jobRows, statusCounts, activeFilters, { jobsViewModel.toggleStatusFilter(it) }, { jobsViewModel.clearStatusFilters() }, onOpenJob, { uuid, status -> jobsViewModel.regularizeJob(uuid, status) }, { jobsViewModel.deleteJobPermanently(it) }, searchVisible = searchVisible, searchQuery = searchQuery, onSearchQueryChange = { searchQuery = it }, onCloseSearch = { closeSearch() })
                     AdminTab.PERSONAL -> StaffTabContent(searchQuery)
                     AdminTab.MATERIALES -> MaterialsTabContent(searchQuery)
-                    AdminTab.CATALOGO -> CatalogTabContent(searchQuery)
-                    AdminTab.TIENDA -> StoreTabContent(searchQuery)
-                    AdminTab.GALERIA -> GalleryTabContent(searchQuery)
                 }
             }
         }
