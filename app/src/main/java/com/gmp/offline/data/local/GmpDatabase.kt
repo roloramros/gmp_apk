@@ -41,6 +41,8 @@ import com.gmp.offline.data.local.entities.StaffEntity
 // Versión 5 (sitio profesional): se agregan CatalogProductEntity/
 // CatalogProductPhotoEntity (tienda de componentes) y GalleryPhotoEntity
 // (galería de instalaciones), mismo patrón que la versión 4.
+// Versión 6: se quita el campo `category` de CatalogProductEntity — se
+// decidió no dividir la tienda por categorías.
 // Se usa `fallbackToDestructiveMigration()` (ver DatabaseModule.kt) porque
 // el proyecto todavía está en desarrollo temprano — el próximo `/sync`
 // repuebla Room desde cero sin pérdida de datos real (la fuente de verdad
@@ -61,7 +63,7 @@ import com.gmp.offline.data.local.entities.StaffEntity
         CatalogProductPhotoEntity::class,
         GalleryPhotoEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class GmpDatabase : RoomDatabase() {

@@ -23,7 +23,6 @@ class CatalogProductsRepository @Inject constructor(
     suspend fun getProduct(uuid: String): CatalogProductEntity? = catalogProductDao.getByUuid(uuid)
 
     suspend fun createProduct(
-        category: String?,
         name: String,
         priceUsd: String?,
         description: String?,
@@ -36,7 +35,7 @@ class CatalogProductsRepository @Inject constructor(
         catalogProductDao.upsertAll(
             listOf(
                 CatalogProductEntity(
-                    uuid = uuid, category = category, name = name, priceUsd = priceUsd,
+                    uuid = uuid, name = name, priceUsd = priceUsd,
                     description = description, inStock = inStock, active = active,
                     sortOrder = 0, createdAt = nowIso, updatedAt = nowIso,
                 ),
@@ -47,7 +46,7 @@ class CatalogProductsRepository @Inject constructor(
             endpointPath = "/catalog-products",
             httpMethod = "POST",
             payload = mapOf(
-                "uuid" to uuid, "category" to category, "name" to name, "price_usd" to priceUsd,
+                "uuid" to uuid, "name" to name, "price_usd" to priceUsd,
                 "description" to description, "in_stock" to inStock, "active" to active,
             ),
         )
@@ -56,7 +55,6 @@ class CatalogProductsRepository @Inject constructor(
 
     suspend fun updateProduct(
         uuid: String,
-        category: String?,
         name: String,
         priceUsd: String?,
         description: String?,
@@ -69,7 +67,7 @@ class CatalogProductsRepository @Inject constructor(
         catalogProductDao.upsertAll(
             listOf(
                 existing.copy(
-                    category = category, name = name, priceUsd = priceUsd, description = description,
+                    name = name, priceUsd = priceUsd, description = description,
                     inStock = inStock, active = active, updatedAt = nowIso,
                 ),
             ),
@@ -79,7 +77,7 @@ class CatalogProductsRepository @Inject constructor(
             endpointPath = "/catalog-products/$uuid",
             httpMethod = "PATCH",
             payload = mapOf(
-                "category" to category, "name" to name, "price_usd" to priceUsd,
+                "name" to name, "price_usd" to priceUsd,
                 "description" to description, "in_stock" to inStock, "active" to active,
             ),
         )

@@ -2,8 +2,8 @@
 //
 // CRUD de la tienda de componentes sueltos (feature "sitio profesional").
 // Mismo patrón exacto que catalogKitsController.js — ver ese archivo para
-// el razonamiento general. Diferencias de dominio: `category` (texto libre)
-// en vez de specs de kit, e `in_stock` en vez de specs técnicas.
+// el razonamiento general. Diferencia de dominio: `in_stock` en vez de specs
+// técnicas. (Sin categorías: se decidió no dividir la tienda por categoría.)
 
 const pool = require('../db/pool');
 
@@ -11,7 +11,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const BASE_SELECT = `
   SELECT
-    p.uuid, p.category, p.name, p.price_usd, p.description, p.in_stock,
+    p.uuid, p.name, p.price_usd, p.description, p.in_stock,
     p.active, p.sort_order, p.created_at, p.updated_at,
     COALESCE(
       (SELECT json_agg(json_build_object(
@@ -27,7 +27,7 @@ const BASE_SELECT = `
 `;
 
 async function createProduct(req, res) {
-  const { uuid, category, name, price_usd, description, in_stock, active, sort_order, created_by_device_id } = req.body || {};
+  const { uuid, name, price_usd, description, in_stock, active, sort_order, created_by_device_id } = req.body || {};
 
   if (!uuid || !UUID_RE.test(uuid)) {
     return res.status(400).json({ error_code: 'invalid_uuid', message: 'uuid es requerido y debe ser un UUID válido.' });
@@ -39,11 +39,11 @@ async function createProduct(req, res) {
   try {
     const result = await pool.query(
       `INSERT INTO catalog_products
-         (uuid, company_id, category, name, price_usd, description, in_stock, active, sort_order, created_by_device_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         (uuid, company_id, name, price_usd, description, in_stock, active, sort_order, created_by_device_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING uuid`,
       [
-        uuid, req.user.company_id, category || null, name.trim(), price_usd ?? null,
+        uuid, req.user.company_id, name.trim(), price_usd ?? null,
         description || null, in_stock === undefined ? true : !!in_stock,
         active === undefined ? true : !!active, sort_order ?? 0, created_by_device_id || null,
       ]
@@ -68,7 +68,7 @@ async function listProducts(req, res) {
     const result = await pool.query(
       `${BASE_SELECT}
        WHERE p.company_id = $1 AND p.deleted_at IS NULL
-       ORDER BY p.category ASC NULLS LAST, p.sort_order ASC, p.name ASC`,
+       ORDER BY p.sort_order ASC, p.name ASC`,
       [req.user.company_id]
     );
     return res.status(200).json({ products: result.rows });
@@ -94,7 +94,7 @@ async function getProduct(req, res) {
   }
 }
 
-const EDITABLE_FIELDS = ['category', 'name', 'price_usd', 'description', 'in_stock', 'active', 'sort_order'];
+const EDITABLE_FIELDS = ['name', 'price_usd', 'description', 'in_stock', 'active', 'sort_order'];
 
 async function updateProduct(req, res) {
   const { uuid } = req.params;

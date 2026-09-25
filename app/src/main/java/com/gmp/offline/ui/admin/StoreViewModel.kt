@@ -41,7 +41,6 @@ class StoreViewModel @Inject constructor(
 
     fun save(
         editingUuid: String?,
-        category: String,
         name: String,
         priceUsd: String,
         description: String,
@@ -61,14 +60,13 @@ class StoreViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val categoryTrimmed = category.trim().ifBlank { null }
                 val priceUsdTrimmed = priceUsd.trim().ifBlank { null }
                 val descriptionTrimmed = description.trim().ifBlank { null }
 
                 if (editingUuid != null) {
-                    catalogProductsRepository.updateProduct(editingUuid, categoryTrimmed, trimmedName, priceUsdTrimmed, descriptionTrimmed, inStock, active)
+                    catalogProductsRepository.updateProduct(editingUuid, trimmedName, priceUsdTrimmed, descriptionTrimmed, inStock, active)
                 } else {
-                    catalogProductsRepository.createProduct(categoryTrimmed, trimmedName, priceUsdTrimmed, descriptionTrimmed, inStock, active)
+                    catalogProductsRepository.createProduct(trimmedName, priceUsdTrimmed, descriptionTrimmed, inStock, active)
                 }
                 onSaved()
             } catch (e: Exception) {

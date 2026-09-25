@@ -121,7 +121,6 @@ fun CatalogKitPhotoDto.toEntity(): CatalogKitPhotoEntity = CatalogKitPhotoEntity
 
 fun CatalogProductDto.toEntity(): CatalogProductEntity = CatalogProductEntity(
     uuid = uuid,
-    category = category,
     name = name,
     priceUsd = priceUsd,
     description = description,

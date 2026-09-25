@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CatalogProductDao {
 
-    @Query("SELECT * FROM catalog_products ORDER BY category ASC, sortOrder ASC, name ASC")
+    @Query("SELECT * FROM catalog_products ORDER BY sortOrder ASC, name ASC")
     fun observeAll(): Flow<List<CatalogProductEntity>>
 
     @Query("SELECT * FROM catalog_products WHERE uuid = :uuid")

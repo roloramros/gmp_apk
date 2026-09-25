@@ -8,7 +8,7 @@ const { CATALOG_PRODUCT_PHOTOS_DIR } = require('../config/storage');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // GET /public/store/:slug
-// Devuelve la lista plana (el front agrupa por `category`).
+// Devuelve la lista plana de productos activos.
 async function getPublicStore(req, res) {
   const { slug } = req.params;
   if (!slug) return res.status(400).json({ error_code: 'missing_slug', message: 'Falta el slug de la empresa en la URL.' });
@@ -24,7 +24,7 @@ async function getPublicStore(req, res) {
 
     const productsResult = await pool.query(
       `SELECT
-         p.uuid, p.category, p.name, p.price_usd, p.description, p.in_stock,
+         p.uuid, p.name, p.price_usd, p.description, p.in_stock,
          COALESCE(
            (SELECT json_agg(json_build_object(
               'url', format('/public/store/%s/photos/%s/file', $1::text, pp.uuid)
@@ -36,7 +36,7 @@ async function getPublicStore(req, res) {
        FROM catalog_products p
        JOIN companies c ON c.id = p.company_id
        WHERE c.slug = $1 AND p.active = true AND p.deleted_at IS NULL
-       ORDER BY p.category ASC NULLS LAST, p.sort_order ASC, p.name ASC`,
+       ORDER BY p.sort_order ASC, p.name ASC`,
       [slug]
     );
 

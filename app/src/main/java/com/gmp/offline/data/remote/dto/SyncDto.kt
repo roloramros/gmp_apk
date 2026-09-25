@@ -142,7 +142,6 @@ data class CatalogKitPhotoDto(
 // Espejo de catalog_products (tienda de componentes sueltos).
 data class CatalogProductDto(
     val uuid: String,
-    val category: String?,
     val name: String,
     @SerializedName("price_usd") val priceUsd: String?,
     val description: String?,

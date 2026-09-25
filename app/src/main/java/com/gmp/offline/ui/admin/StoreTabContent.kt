@@ -80,10 +80,7 @@ fun StoreTabContent(
     val normalizedQuery = searchQuery.trim()
     val visibleProducts = remember(products, normalizedQuery) {
         if (normalizedQuery.isBlank()) products
-        else products.filter { it.name.contains(normalizedQuery, ignoreCase = true) || it.category?.contains(normalizedQuery, ignoreCase = true) == true }
-    }
-    val grouped = remember(visibleProducts) {
-        visibleProducts.groupBy { it.category?.trim().takeUnless { c -> c.isNullOrBlank() } ?: "Sin categoría" }
+        else products.filter { it.name.contains(normalizedQuery, ignoreCase = true) }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -111,16 +108,8 @@ fun StoreTabContent(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                grouped.forEach { (category, items) ->
-                    item(key = "header-$category") {
-                        Text(
-                            category, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold,
-                            color = SolarGreen, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
-                        )
-                    }
-                    items(items, key = { it.uuid }) { product ->
-                        StoreProductRow(product = product, onEdit = { editingProduct = product; showForm = true }, onDelete = { deletingProduct = product })
-                    }
+                items(visibleProducts, key = { it.uuid }) { product ->
+                    StoreProductRow(product = product, onEdit = { editingProduct = product; showForm = true }, onDelete = { deletingProduct = product })
                 }
             }
         }
@@ -133,8 +122,8 @@ fun StoreTabContent(
             photoState = viewModel.photoState.collectAsStateWithLifecycle().value,
             photosFlowProvider = { uuid -> viewModel.photosForProduct(uuid) },
             onDismiss = { showForm = false; viewModel.clearError(); viewModel.dismissPhotoError() },
-            onSave = { category, name, priceUsd, description, inStock, active ->
-                viewModel.save(editingProduct?.uuid, category, name, priceUsd, description, inStock, active) { showForm = false }
+            onSave = { name, priceUsd, description, inStock, active ->
+                viewModel.save(editingProduct?.uuid, name, priceUsd, description, inStock, active) { showForm = false }
             },
             onAddPhoto = { uri -> editingProduct?.let { viewModel.addPhoto(it.uuid, uri) } },
             onRetryPhoto = { photoUuid -> editingProduct?.let { viewModel.retryPhoto(it.uuid, photoUuid) } },
@@ -197,13 +186,12 @@ private fun StoreProductFormDialog(
     photoState: PhotoUiState,
     photosFlowProvider: (String) -> kotlinx.coroutines.flow.Flow<List<CatalogProductPhotoEntity>>,
     onDismiss: () -> Unit,
-    onSave: (category: String, name: String, priceUsd: String, description: String, inStock: Boolean, active: Boolean) -> Unit,
+    onSave: (name: String, priceUsd: String, description: String, inStock: Boolean, active: Boolean) -> Unit,
     onAddPhoto: (android.net.Uri) -> Unit,
     onRetryPhoto: (String) -> Unit,
     onRemovePhoto: (String) -> Unit,
     onDismissPhotoError: () -> Unit,
 ) {
-    var category by remember(editing) { mutableStateOf(editing?.category ?: "") }
     var name by remember(editing) { mutableStateOf(editing?.name ?: "") }
     var priceUsd by remember(editing) { mutableStateOf(editing?.priceUsd ?: "") }
     var description by remember(editing) { mutableStateOf(editing?.description ?: "") }
@@ -215,11 +203,6 @@ private fun StoreProductFormDialog(
         title = { Text(if (editing != null) "Editar producto" else "Añadir producto") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = category, onValueChange = { category = it }, label = { Text("Categoría") },
-                    placeholder = { Text("Ej. Paneles, Inversores, Baterías...") }, singleLine = true,
-                    shape = RoundedCornerShape(14.dp), colors = storeFieldColors(), modifier = Modifier.fillMaxWidth(),
-                )
                 OutlinedTextField(
                     value = name, onValueChange = { name = it }, label = { Text("Nombre") }, singleLine = true,
                     shape = RoundedCornerShape(14.dp), colors = storeFieldColors(), modifier = Modifier.fillMaxWidth(),
@@ -255,7 +238,7 @@ private fun StoreProductFormDialog(
                 if (errorMessage != null) Text(errorMessage, color = SolarError, style = MaterialTheme.typography.bodySmall)
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(category, name, priceUsd, description, inStock, active) }) { Text("Guardar") } },
+        confirmButton = { TextButton(onClick = { onSave(name, priceUsd, description, inStock, active) }) { Text("Guardar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
     )
 }

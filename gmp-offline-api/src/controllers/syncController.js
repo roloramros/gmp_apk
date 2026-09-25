@@ -248,7 +248,7 @@ async function queryEntityPage(entityName, user, since, snapshot, offset) {
       const pOffset = ph(params, offset);
       sql = `
         SELECT p.uuid, p.updated_at, p.deleted_at,
-          p.category, p.name, p.price_usd, p.description, p.in_stock,
+          p.name, p.price_usd, p.description, p.in_stock,
           p.active, p.sort_order, p.created_at
         FROM catalog_products p
         WHERE p.company_id = ${pCompany}
@@ -416,7 +416,6 @@ function formatUpsert(entityName, row) {
     case 'catalog_products':
       return {
         uuid: row.uuid,
-        category: row.category,
         name: row.name,
         price_usd: row.price_usd,
         description: row.description,
