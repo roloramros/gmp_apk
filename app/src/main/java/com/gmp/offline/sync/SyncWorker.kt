@@ -19,6 +19,7 @@ class SyncWorker @AssistedInject constructor(
     private val outboxProcessor: OutboxProcessor,
     private val syncEngine: SyncEngine,
     private val sessionManager: SessionManager,
+    private val syncStatusRepository: SyncStatusRepository,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -29,11 +30,14 @@ class SyncWorker @AssistedInject constructor(
             return Result.success()
         }
 
+        syncStatusRepository.onSyncStart()
         return try {
             val outboxCompleted = outboxProcessor.processPending()
             syncEngine.pull()
+            syncStatusRepository.onSyncSuccess()
             if (outboxCompleted) Result.success() else Result.retry()
         } catch (e: Exception) {
+            syncStatusRepository.onSyncError(e.message ?: "No se pudo sincronizar.")
             Result.retry()
         }
     }

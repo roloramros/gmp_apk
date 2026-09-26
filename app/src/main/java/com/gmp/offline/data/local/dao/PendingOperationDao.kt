@@ -12,6 +12,9 @@ interface PendingOperationDao {
     @Query("SELECT * FROM pending_operations ORDER BY createdAt ASC")
     fun observeAll(): Flow<List<PendingOperationEntity>>
 
+    @Query("SELECT COUNT(*) FROM pending_operations")
+    fun observeCount(): Flow<Int>
+
     @Query("SELECT * FROM pending_operations WHERE status = 'pending' ORDER BY createdAt ASC")
     suspend fun getPending(): List<PendingOperationEntity>
 
